@@ -5,7 +5,8 @@
 
 set -e
 
-DEB_DIR=$(find src-tauri/target/release/bundle/deb -maxdepth 1 -name "*.deb" -type f | sort -r | head -1)
+# workspace 布局下产物在根 target/（非 src-tauri/target/）
+DEB_DIR=$(find target/release/bundle/deb -maxdepth 1 -name "*.deb" -type f | sort -r | head -1)
 
 if [ -z "$DEB_DIR" ]; then
     echo "未找到 .deb 包，跳过修复。"
