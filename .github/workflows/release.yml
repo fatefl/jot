@@ -103,14 +103,16 @@ jobs:
           name: bundles-${{ matrix.target }}
           path: |
             # 注意：项目是 workspace（根 Cargo.toml），构建产物在根 target/，
-            # 而非 src-tauri/target/；macOS universal 构建在 universal-apple-darwin 目录下
+            # 而非 src-tauri/target/；macOS universal 构建在 universal-apple-darwin 目录下。
+            # 不包含 *.app 目录——它是文件夹，会被 files: bundles/**/* 递归展开成
+            # 一堆松散资产（Info.plist/icon.icns/二进制/资源文档），污染 release；
+            # macOS 用户直接用 dmg 即可（dmg 内含 .app）。
             target/release/bundle/deb/*.deb
             target/release/bundle/rpm/*.rpm
             target/release/bundle/appimage/*.AppImage
             target/release/bundle/nsis/*.exe
             target/release/bundle/msi/*.msi
             target/universal-apple-darwin/release/bundle/dmg/*.dmg
-            target/universal-apple-darwin/release/bundle/macos/*.app
           if-no-files-found: ignore
 
   release:
