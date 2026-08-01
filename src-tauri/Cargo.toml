@@ -1,0 +1,42 @@
+[package]
+name = "jot"
+version = "0.1.17"
+description = "Personal git-backed markdown notes"
+license = "MIT"
+edition = "2021"
+
+[lib]
+name = "jot_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+# devtools 只用于本地调试（右键「检查元素」），经 cargo feature 按需开启，
+# 不进默认构建——tauri 官方明确警告 devtools 会包含进生产包。
+# 用法：pnpm tauri dev -f devtools
+[features]
+devtools = ["tauri/devtools"]
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset", "image-png", "tray-icon"] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-window-state = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "6"
+toml = "0.8"
+chrono = "0.4"
+wait-timeout = "0.2"
+base64 = "0.22"
+keyring = { version = "3", default-features = false, features = ["sync-secret-service", "apple-native", "windows-native"] }
+tokio = { version = "1", features = ["sync", "time"] }
+
+# macOS：导出 PDF 通过离屏 WKWebView 原生渲染（WKWebView 不支持 window.print()）
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSString", "NSError", "NSURL", "NSGeometry", "NSDictionary"] }
+objc2-web-kit = { version = "0.3", default-features = false, features = ["std", "objc2-core-foundation", "objc2-app-kit", "block2", "WKWebView", "WKWebViewConfiguration", "WKNavigation"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "objc2-core-foundation", "NSWindow", "NSView", "NSPrintInfo", "NSPrintOperation"] }

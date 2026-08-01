@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jot</title>
+    <!-- 防止 WebView 白底闪烁：在 CSS 加载前立即设置背景色 -->
+    <style>
+      html, body { background: #f0f2f5; margin: 0; }
+      @media (prefers-color-scheme: dark) {
+        html, body { background: #0f131a; }
+      }
+    </style>
+  </head>
+  <body class="no-transition">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+[package]
+name = "jot-mcp"
+version = "0.1.0"
+license = "MIT"
+edition = "2021"
+
+[[bin]]
+name = "jot-mcp"
+path = "src/main.rs"
+
+[dependencies]
+model-context-protocol = { version = "0.2", features = ["full"] }
+tokio = { version = "1", features = ["rt", "macros"] }
+clap = { version = "4", features = ["derive", "env"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+regex = "1"
+walkdir = "2"
+
+[dev-dependencies]
+tempfile = "3"

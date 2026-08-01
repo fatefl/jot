@@ -1,0 +1,130 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            target: linux
+            args: ""
+          - platform: windows-latest
+            target: windows
+            args: "--bundles nsis"
+          - platform: macos-latest
+            target: macos
+            args: "--target universal-apple-darwin"
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      # 发布前先跑测试——防止带病发布（此前 MCP 沙箱 bug 因 CI 不跑测试而漏检）
+      - name: Run frontend tests
+        run: pnpm test
+
+      - name: Run MCP tests
+        run: cargo test -p jot-mcp
+
+      # 构建 jot-mcp 并放入 src-tauri/binaries/，供 tauri externalBin 打包进安装包
+      # Tauri 按 <名称>-<target triple> 约定查找 sidecar 二进制
+      - name: Build jot-mcp (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          cargo build --release -p jot-mcp
+          mkdir -p src-tauri/binaries
+          cp target/release/jot-mcp src-tauri/binaries/jot-mcp-x86_64-unknown-linux-gnu
+
+      - name: Build jot-mcp (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: |
+          cargo build --release -p jot-mcp
+          mkdir -p src-tauri/binaries
+          cp target/release/jot-mcp.exe src-tauri/binaries/jot-mcp-x86_64-pc-windows-msvc.exe
+
+      - name: Build jot-mcp (macOS universal)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          cargo build --release -p jot-mcp --target aarch64-apple-darwin
+          cargo build --release -p jot-mcp --target x86_64-apple-darwin
+          mkdir -p src-tauri/binaries
+          lipo -create \
+            target/aarch64-apple-darwin/release/jot-mcp \
+            target/x86_64-apple-darwin/release/jot-mcp \
+            -output src-tauri/binaries/jot-mcp-universal-apple-darwin
+
+      - name: Build Tauri app
+        run: pnpm tauri build ${{ matrix.args }}
+
+      - name: Fix .deb desktop entry (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: bash scripts/fix-deb-desktop.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundles-${{ matrix.target }}
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/macos/*.app
+          if-no-files-found: ignore
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bundles-*
+          merge-multiple: true
+          path: bundles
+
+      - name: List bundles
+        run: ls -laR bundles/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "即记 (Jot) ${{ github.ref_name }}"
+          body: "See the assets to download this version and install."
+          draft: true
+          prerelease: false
+          files: bundles/**/*

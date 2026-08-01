@@ -1,0 +1,1089 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 启动时禁用所有过渡动画，避免主题切换/首屏渲染产生闪烁 */
+.no-transition,
+.no-transition *,
+.no-transition *::before,
+.no-transition *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* ------------------------------------------------------------------ */
+/* Design tokens                                                       */
+/* ------------------------------------------------------------------ */
+:root {
+  --editor-bg: #fafbfc;
+  --sidebar-bg: #f0f2f5;
+  --hover: #e8ecf1;
+  --border: #dde1e6;
+  --text: #1a1d23;
+  --text-secondary: #88909b;
+  --accent: #6366F1;
+  --accent-soft: rgba(99, 102, 241, 0.08);
+  /* 字体不变 */
+  --font-prose: "Noto Sans CJK SC", "Noto Sans", system-ui, -apple-system,
+    "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: "Noto Sans Mono", "JetBrains Mono", "DejaVu Sans Mono",
+    ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --code-keyword: #d14b4b;
+  --code-string: #1a6b8a;
+  --code-comment: #88909b;
+  --code-number: #0070d8;
+  --code-fn: #8b6ce0;
+  --code-type: #c07830;
+  --code-property: #2a8a4a;
+  /* 毛玻璃 token（新增） */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(0, 0, 0, 0.06);
+}
+
+.dark {
+  --editor-bg: #0b0e14;
+  --sidebar-bg: #0f131a;
+  --hover: #18202b;
+  --border: #252b36;
+  --text: #e8eef4;
+  --text-secondary: #7d8896;
+  --accent: #6366F1;
+  --accent-soft: rgba(99, 102, 241, 0.12);
+  --code-keyword: #f0887a;
+  --code-string: #8dc8e8;
+  --code-comment: #7d8896;
+  --code-number: #8db8f0;
+  --code-fn: #c8a8f0;
+  --code-type: #f0b878;
+  --code-property: #88d8a0;
+  /* 毛玻璃 token（暗色） */
+  --glass-bg: rgba(17, 22, 30, 0.78);
+  --glass-border: rgba(255, 255, 255, 0.06);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* 根字号：设计基准 15px，可通过 JS 按 DPI 缩放覆盖。
+   下方所有尺寸用 rem / em，确保 DPI 缩放时整体协调。 */
+html {
+  font-size: 15px;
+}
+
+body {
+  font-family: var(--font-prose);
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--editor-bg);
+  overflow: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ------------------------------------------------------------------ */
+/* Editor (CodeMirror：源码模式与即时渲染模式同一底座)                   */
+/* ------------------------------------------------------------------ */
+
+.editor-body .cm-editor {
+  height: 100%;
+  background: var(--editor-bg);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* 即时渲染模式用正文比例字体（表格/代码块由 lp-* 行类单独回到等宽） */
+.editor-body .lp-mode .cm-editor {
+  font-family: var(--font-prose);
+}
+
+/* 版心限宽 1100px 居中：宽窗口下控制行长，两侧留白聚焦。
+   底部留白放在 content 上，这样 CM 的 contentDOM 能正确将点击映射到光标位置；
+   同时 .cm-content 设置 min-height 确保内容不足一屏时下方空白也可点击落光标。
+
+   特异度必须 ≥ (0,3,0) 才能压过 CM6 baseTheme 的 .{baseThemeID} .cm-content
+   （后者在 EditorView 构造时通过 StyleModule 注入 DOM，注入时机晚于 Vite CSS，
+   同等特异度下后加载者胜 → 我们的 margin/flex-grow 被静默覆盖）。 */
+.editor-body .cm-editor .cm-content {
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px 48px 120px;
+  min-height: calc(100% + 120px);
+  box-sizing: border-box;
+  /* 重置 CM6 baseTheme 的 flex-grow:2；
+     否则 flex-grow 抢占全部剩余空间，max-width 裁剪后 margin:auto 无空间可居中 */
+  flex-grow: 0;
+}
+
+/* 编辑器内容区过渡 */
+.editor-body .cm-editor .cm-content {
+  transition: max-width 300ms ease-out;
+}
+
+/* 专注模式：更宽的内容区域 */
+html.focus-mode .editor-body .cm-editor .cm-content {
+  max-width: 1300px;
+}
+
+.editor-body .cm-editor .cm-scroller {
+  font-family: inherit;
+}
+
+/* 关闭 CM 自绘选中层，启用浏览器原生 ::selection。
+   原生选区天然只覆盖文字区域（不延伸到行尾空白），
+   且 ::selection 画在元素背景上面，不会被 lp-inline-code 底色遮挡。 */
+.editor-body .cm-selectionLayer {
+  display: none !important;
+}
+
+.editor-body .cm-content ::selection {
+  background-color: var(--accent-soft) !important;
+}
+
+/* CodeMirror placeholder 用次要文字色 */
+.editor-body .cm-placeholder {
+  color: var(--text-secondary);
+}
+
+.editor-body .cm-gutters {
+  background: var(--editor-bg);
+  color: var(--text-secondary);
+  border-right: 1px solid var(--border);
+}
+
+/* 主题切换时编辑面随 token 平滑过渡（body 已有全局过渡，这里覆盖编辑器自身背景） */
+.editor-body,
+.editor-body .cm-editor {
+  transition: background-color 0.3s ease;
+}
+
+.editor-body .cm-content {
+  transition: color 0.3s ease;
+}
+
+/* 滚动条出现/消失时居中版心不左右横移
+   （macOS 覆盖式滚动条无影响，Linux 经典滚动条必备）。
+   滚动容器是 CM 内部的 .cm-scroller，而非外层 .editor-body */
+.editor-body .cm-scroller {
+  scrollbar-gutter: stable;
+  overflow-anchor: auto;
+}
+
+/* 自定义编辑器滚动条样式：6px 宽滑块 + 右侧 2px 留白，最小高度 50px */
+.editor-body .cm-scroller::-webkit-scrollbar {
+  width: 8px;
+}
+.editor-body .cm-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+.editor-body .cm-scroller::-webkit-scrollbar-thumb {
+  background-color: var(--text-secondary);
+  border-radius: 3px;
+  border-right: 2px solid transparent;
+  background-clip: padding-box;
+  min-height: 50px;
+}
+.editor-body .cm-scroller::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--text) 60%, transparent);
+  background-clip: padding-box;
+}
+
+/* ------------------------------------------------------------------ */
+/* 即时渲染装饰（lp-*）：标记始终隐藏，不随光标位置还原                  */
+/* ------------------------------------------------------------------ */
+
+/* 标题：行类直接放大字号，用 padding-top 模拟段前距 */
+.editor-body .cm-line.lp-h1,
+.editor-body .cm-line.lp-h2,
+.editor-body .cm-line.lp-h3,
+.editor-body .cm-line.lp-h4,
+.editor-body .cm-line.lp-h5,
+.editor-body .cm-line.lp-h6 {
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  padding-top: 0.6em;
+  padding-bottom: 0.15em;
+}
+
+.editor-body .cm-line.lp-h1 { font-size: 2em; }
+.editor-body .cm-line.lp-h2 { font-size: 1.6em; }
+.editor-body .cm-line.lp-h3 { font-size: 1.3em; }
+.editor-body .cm-line.lp-h4 { font-size: 1.15em; }
+.editor-body .cm-line.lp-h5 { font-size: 1em; }
+.editor-body .cm-line.lp-h6 {
+  font-size: 0.9em;
+  color: var(--text-secondary);
+}
+
+.editor-body .lp-strong { font-weight: 600; }
+.editor-body .lp-em { font-style: italic; }
+.editor-body .lp-strike { text-decoration: line-through; }
+
+/* 行内标记极小化隐藏：font-size 缩到 0.25em 让标记近零宽（~2px/字），
+   减少隐藏字符对行宽和点击位置的影响；但保留非零字号避免
+   posAtCoords 找不到锚点光标无法点击。font-size:0 彻底零宽但打断光标。
+   后代选择器 + !important 必需：HeaderMark/EmphasisMark 等标记会被
+   codeHighlight 的 t.meta 规则套上内层灰色 <span>，显式色会盖过继承 */
+.editor-body .lp-inline-hidden,
+.editor-body .lp-inline-hidden * {
+  color: transparent !important;
+  font-size: 0.25em;
+}
+
+/* HTML 占位徽标：所见即所得下 HTML 源码隐藏，原位显示紧凑徽标
+   （hover 显示源码、点击切源码模式定位） */
+.editor-body .lp-html-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  background: var(--hover);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+/* 块级徽标：首行整行替换，略增内边距 */
+.editor-body .lp-html-badge.lp-html-badge-block {
+  padding: 1px 8px;
+}
+
+/* 行内代码：弱化底色，圆角稍大 */
+.editor-body .lp-inline-code {
+  background: var(--hover);
+  padding: 0.12em 0.4em;
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+
+/* 链接：细下划线 */
+.editor-body .lp-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--accent-soft);
+}
+
+/* 引用块：细竖条 + 次要色文字（行类，连续行拼成整条竖线） */
+.editor-body .cm-line.lp-quote {
+  border-left: 3px solid var(--border);
+  padding-left: 16px;
+  color: var(--text-secondary);
+}
+
+/* 多层嵌套引用块：内层竖线由 JS 动态计算 linear-gradient 并通过
+   inline style 应用，不再依赖 CSS 硬编码深度上限。*/
+
+/* 空行压缩：每组连续空行的第一行高度压缩到 0。
+   规则：1 空行 ≈ 0、2 空行 ≈ 1、3 空行 ≈ 2。 */
+.editor-body .cm-line.lp-block-spacer {
+  line-height: 0;
+  font-size: 0;
+  min-height: 0;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* 分割线：块级 widget（StateField + block:true，替换范围见 blockWidgetRange
+   统一规则）。用固定高度 + flex 居中，确保上下一半间距精密相等。 */
+.editor-body .lp-hr {
+  display: flex;
+  align-items: center;
+  height: 2em;
+}
+.editor-body .lp-hr::before {
+  content: "";
+  display: block;
+  width: 100%;
+  border-top: 1px solid var(--border);
+}
+
+/* 分割线后紧跟标题时去掉标题段前距：widget 自身 2em 高度已提供分隔，
+   叠加 padding-top 会把下文推远，导致分割线视觉上偏上、上下不居中。
+   两种相邻形态：无空行（标题直接相邻）/ 一个空行（压缩为 lp-block-spacer）。 */
+.editor-body .lp-hr + .cm-line.lp-h1,
+.editor-body .lp-hr + .cm-line.lp-h2,
+.editor-body .lp-hr + .cm-line.lp-h3,
+.editor-body .lp-hr + .cm-line.lp-h4,
+.editor-body .lp-hr + .cm-line.lp-h5,
+.editor-body .lp-hr + .cm-line.lp-h6,
+.editor-body .lp-hr + .cm-line.lp-block-spacer + .cm-line.lp-h1,
+.editor-body .lp-hr + .cm-line.lp-block-spacer + .cm-line.lp-h2,
+.editor-body .lp-hr + .cm-line.lp-block-spacer + .cm-line.lp-h3,
+.editor-body .lp-hr + .cm-line.lp-block-spacer + .cm-line.lp-h4,
+.editor-body .lp-hr + .cm-line.lp-block-spacer + .cm-line.lp-h5,
+.editor-body .lp-hr + .cm-line.lp-block-spacer + .cm-line.lp-h6 {
+  padding-top: 0;
+}
+
+/* 块级 widget 位于文档开头时，CM6 会在其上方多渲染一个幻影空行（供光标
+   落位，无对应文档空行，blankLineField 压不到），压缩掉保持间距对称 */
+.editor-body .cm-content > .cm-line:first-child:has(+ .lp-hr),
+.editor-body .cm-content > .cm-line:first-child:has(+ .lp-table-wrapper),
+.editor-body .cm-content > .cm-line:first-child:has(+ .lp-mermaid),
+.editor-body .cm-content > .cm-line:first-child:has(+ .lp-math-block) {
+  line-height: 0;
+  font-size: 0;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* 幻影空行的通用压缩：CM6 在每个 block widget 的起始边界（紧跟内容行或
+   紧跟另一个 block widget、中间无空行）都会渲染一个仅供光标落位的空行
+   （无对应源码行，blankLineField 压不到）。它由 <br> 组成、无文本，因此
+   :empty 匹配不了，用 :has(> br) 识别。前导的真实空行都带 lp-block-spacer
+   （已是 0 高），再压缩幂等无害；文本行不含 <br>，不会被误伤。 */
+.editor-body .cm-content > .cm-line:has(> br):has(+ .lp-hr),
+.editor-body .cm-content > .cm-line:has(> br):has(+ .lp-table-wrapper),
+.editor-body .cm-content > .cm-line:has(> br):has(+ .lp-mermaid),
+.editor-body .cm-content > .cm-line:has(> br):has(+ .lp-math-block) {
+  line-height: 0;
+  font-size: 0;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* Mermaid 块被拖选覆盖时的高亮。container 背景是内联样式，class 背景压不过，
+   用 outline + inset box-shadow 着色（mermaidSelectionPlugin 按选区重叠加 class） */
+.editor-body .lp-mermaid.lp-mermaid-selected {
+  outline: 2px solid var(--accent);
+  box-shadow: inset 0 0 0 9999px var(--accent-soft);
+}
+
+/* 代码块：整块浅灰底 + 等宽。顶部/底部行做圆角，中间行无缝衔接 */
+.editor-body .cm-line.lp-code-line {
+  background: var(--sidebar-bg);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  line-height: 1.55;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+/* 代码块首行：顶部圆角 + 上内边距。
+   与上一块的间隔用透明 border + background-clip 制造（背景不进 border 区域），
+   不能用 margin：CM6 行高测量不含 margin，会累积坐标偏移（见 lp-table-wrapper 注释） */
+.editor-body .cm-line.lp-code-line-top {
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  padding-top: 0.5em;
+  border-top: 6px solid transparent;
+  background-clip: padding-box;
+}
+
+/* 代码块尾行：底部圆角 + 下内边距 */
+.editor-body .cm-line.lp-code-line-bot {
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+  padding-bottom: 0.5em;
+}
+
+/* 围栏行：标记已隐藏，行高收缩（语言标签 widget 撑起可见高度） */
+.editor-body .cm-line.lp-code-fence {
+  color: var(--text-secondary);
+  line-height: 1.2;
+}
+
+.editor-body .lp-math-inline {
+  display: inline;
+  vertical-align: middle;
+}
+
+.editor-body .lp-math-block {
+  display: block;
+  padding: 0.6em 0; /* padding 替代 margin：CM6 block widget 测量不包含 margin */
+  text-align: center;
+}
+
+.editor-body .lp-math-inner {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden; /* visible 会被 CSS 规范强制变为 auto → scroll container */
+}
+
+/* KaTeX 字体颜色跟随设计 token，暗色模式下公式正确反色 */
+.editor-body .lp-math-inline .katex,
+.editor-body .lp-math-block .katex {
+  color: var(--text);
+}
+
+/* ── 公式编辑浮动工具栏 ── */
+.lp-math-toolbar {
+  position: absolute;
+  z-index: 100;
+  display: flex;
+  gap: 4px;
+  padding: 3px 4px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.lp-math-toolbar button {
+  padding: 3px 10px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.5;
+  transition: background 0.15s;
+}
+.lp-math-tb-done {
+  background: var(--accent);
+  color: #fff;
+}
+.lp-math-tb-done:hover { opacity: 0.85; }
+.lp-math-tb-cancel {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.lp-math-tb-cancel:hover { background: var(--hover); }
+
+.lp-math-tb-btns {
+  display: flex; gap: 4px;
+}
+.lp-math-tb-preview {
+  margin-top: 6px;
+  padding: 8px 12px;
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid var(--glass-border);
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 400px;
+}
+.lp-math-tb-preview:empty { display: none; }
+.lp-math-tb-preview .katex { color: var(--text); }
+
+.dark .lp-math-toolbar {
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+/* ── 公式编辑 LaTeX 语法高亮 ── */
+.editor-body .lp-latex-kw  { color: #7b3fa3; font-weight: 500; }  /* \命令 */
+.editor-body .lp-latex-br  { color: #3370ff; }                    /* {} */
+.editor-body .lp-latex-op  { color: #e36209; }                    /* _ ^ */
+.editor-body .lp-latex-num { color: #098658; }                    /* 数字 */
+.editor-body .lp-latex-cmt { color: #6a737d; font-style: italic; }/* 注释 */
+
+.dark .lp-latex-kw  { color: #c792ea; }
+.dark .lp-latex-br  { color: #82aaff; }
+.dark .lp-latex-op  { color: #f78c6c; }
+.dark .lp-latex-num { color: #a5d6ff; }
+.dark .lp-latex-cmt { color: #546e7a; }
+
+/* ── 公式编辑内联预览 ── */
+.editor-body .lp-math-edit-preview .katex {
+  color: var(--text-secondary);
+  opacity: 0.75;
+}
+
+/* ── 公式 / 图表编辑区背景卡片 ── */
+/* 编辑区行底色 + 左右内边距，与预览 widget (sidebar-bg + border-radius)
+   视觉统一为一个编辑卡片 */
+.editor-body .cm-line.lp-edit-line {
+  background: var(--sidebar-bg);
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+/* 编辑块首行：上圆角 + 上内边距 */
+.editor-body .cm-line.lp-edit-line-first {
+  border-radius: 8px 8px 0 0;
+  padding-top: 12px;
+}
+
+/* 编辑块末行：下圆角 + 下内边距 */
+.editor-body .cm-line.lp-edit-line-last {
+  border-radius: 0 0 8px 8px;
+  padding-bottom: 12px;
+}
+
+/* 单独一行时四个角都圆（同时命中 first + last） */
+.editor-body .cm-line.lp-edit-line-first.lp-edit-line-last {
+  border-radius: 8px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+/* 代码块语言标签徽章 */
+.editor-body .lp-code-lang {
+  display: inline-block;
+  color: var(--text-secondary);
+  font-size: 0.78em;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* 代码块复制按钮：浮动到头部行右侧，默认低调，悬停/复制成功时强调 */
+.editor-body .lp-code-copy {
+  float: right;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.editor-body .lp-code-copy:hover {
+  opacity: 1;
+  background: var(--hover);
+}
+.editor-body .lp-code-copy.lp-copied {
+  opacity: 1;
+  color: var(--accent);
+}
+.editor-body .lp-code-copy svg {
+  display: block;
+}
+
+/* 无序列表圆点 / 任务列表勾选框 */
+.editor-body .lp-bullet {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.editor-body .lp-checkbox {
+  accent-color: var(--accent);
+  /* padding 替代 margin：行内 widget 的 margin 不计入 CM6 宽度测量，
+     少测 4px 会导致后续内容的坐标偏移（铁律：间距用 padding 不用 margin） */
+  padding: 0 4px 0 0;
+  vertical-align: -1px;
+}
+
+/* 表格：始终渲染（widget 替换源码，改内容请切源码模式）。
+   编辑器默认忽略 widget 上的事件（WidgetType.ignoreEvent 基类返回 true），
+   因此允许浏览器原生选择，用户可以直接圈选复制单元格文字。
+   圆角要点：border-collapse: collapse 下 border-radius 不生效，
+   必须 separate + spacing 0；外框给 table，单元格只留左/上内部分隔线 */
+.editor-body .lp-table-wrapper {
+  /* padding 替代 margin：避免与 CM6 .cm-line 发生父子 margin collapsing
+     导致 CM6 测量 block widget 高度时不包含此间距，累积偏移（每个表格低估 ~13px） */
+  padding: 0.5em 0;
+  /* 工具栏绝对定位的锚点 */
+  position: relative;
+  user-select: text;
+  cursor: auto;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.editor-body .lp-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: 0.92em;
+}
+
+.editor-body .lp-table th,
+.editor-body .lp-table td {
+  border: none;
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  padding: 6px 12px;
+  height: 1.75em; /* 和编辑器 line-height 一致，空行不会塌陷 */
+}
+
+/* 首行/首列不画内部分隔线，外框已由 table 提供 */
+.editor-body .lp-table tr:first-child > :is(th, td) {
+  border-top: none;
+}
+
+.editor-body .lp-table tr > :is(th, td):first-child {
+  border-left: none;
+}
+
+.editor-body .lp-table th {
+  background: var(--sidebar-bg);
+  font-weight: 600;
+}
+
+/* 编辑时保留原内容撑住单元格尺寸，仅视觉隐藏。
+   pre-wrap 保留 \n 换行符，让 ghost 行数和显示内容一致 */
+.editor-body .lp-cell-ghost {
+  visibility: hidden;
+  white-space: pre-wrap;
+}
+
+/* 单元格点击可编辑：输入框继承单元格排版，去掉默认边框 */
+.editor-body .lp-table :is(th, td) {
+  cursor: text;
+  position: relative;
+}
+
+.editor-body .lp-cell-input {
+  position: absolute;
+  inset: 0;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-style: inherit;
+  line-height: inherit;
+  color: inherit;
+  background: inherit;
+  text-align: inherit;  /* textarea 不会自动继承父级 text-align */
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  -webkit-font-smoothing: inherit;
+  -moz-osx-font-smoothing: inherit;
+  -webkit-text-fill-color: currentColor;
+  /* padding 与单元格一致：填满单元格同时文字对齐显示位置，四边都有间距 */
+  padding: 6px 12px;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.editor-body .lp-cell-input:focus {
+  outline: none;
+}
+/* 表格工具栏：绝对定位悬浮在表格上方，不占文档流——此前 opacity:0
+   常驻布局，每个表格头顶白白扛着 26px。
+   bottom: calc(100% - 4px)：与 wrapper 顶边重叠 4px（只覆盖 padding-top
+   的空白，碰不到表格）。若留缝隙（如 margin-bottom），鼠标从表格移向
+   工具栏经过缝隙时 :hover 中断，工具栏瞬间消失、永远点不到。
+   hover 时出现并短暂覆盖上一行文字下沿，
+   高度不变 → CM6 无需重测，滚动条不跳。药丸背景避免与下方文字叠影。
+   消失延迟 0.3s：鼠标快速掠过/抖一下不会闪烁。 */
+.editor-body .lp-table-toolbar {
+  position: absolute;
+  bottom: calc(100% - 4px);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 24px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  background: var(--editor-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  opacity: 0;
+  transition: opacity 0.15s ease 0.3s;
+  pointer-events: none;
+}
+.editor-body .lp-table-wrapper:hover .lp-table-toolbar {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+.editor-body .lp-tb-left {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+.editor-body .lp-tb-right {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+.editor-body .lp-tb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.editor-body .lp-tb-btn:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.editor-body .lp-tb-del:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+.editor-body .lp-tb-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+  margin: 0 4px;
+}
+/* "更多" 下拉菜单 — 对齐 ContextMenu 风格 */
+.editor-body .lp-tb-more-wrap {
+  position: relative;
+}
+.editor-body .lp-tb-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 2px;
+  min-width: 150px;
+  background: var(--editor-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 100;
+  padding: 4px;
+}
+.editor-body .lp-tb-menu.lp-tb-menu-open {
+  display: block;
+}
+.editor-body .lp-tb-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+.editor-body .lp-tb-menu button:hover {
+  background: var(--hover);
+}
+.editor-body .lp-tb-menu button.lp-tb-menu-danger {
+  color: #ef4444;
+}
+.editor-body .lp-tb-menu button.lp-tb-menu-danger:hover {
+  background: rgba(239, 68, 68, 0.08);
+}
+.editor-body .lp-tb-menu-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 6px;
+}
+
+/* ── 中文搜索面板 ────────────────────────────────────── */
+.jot-search-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  background: var(--sidebar-bg);
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.jot-search-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.jot-search-input {
+  width: 180px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--editor-bg);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+.jot-search-input:focus {
+  border-color: var(--accent);
+}
+
+.jot-search-count {
+  min-width: 60px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.jot-search-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.jot-search-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.jot-search-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.jot-search-check input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.jot-search-close {
+  margin-left: auto;
+}
+
+.jot-search-toggle.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.jot-search-replace-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 4px;
+}
+
+.jot-replace-btn {
+  padding: 0 8px;
+  width: auto;
+  font-size: 12px;
+}
+
+/* 图片：行内块 + 圆角 + 交互态 hover/active/focus 指示 */
+.editor-body .lp-image {
+  display: inline-block;
+  max-width: 100%;
+  min-height: 120px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, opacity 0.15s ease;
+  outline: none;
+  vertical-align: text-bottom;
+}
+.editor-body .lp-image:hover {
+  box-shadow: 0 0 0 2px var(--accent-soft), 0 2px 12px rgba(0,0,0,0.12);
+  opacity: 0.92;
+  transform: scale(1.005);  /* 新增微缩放 */
+}
+.editor-body .lp-image:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent), 0 2px 12px rgba(0,0,0,0.12);
+}
+
+.editor-body .lp-image-broken {
+  color: var(--text-secondary);
+  font-size: 0.86em;
+  background: var(--hover);
+  padding: 0.12em 0.4em;
+  border-radius: 5px;
+}
+
+/* 图片工具栏：悬停图片时显示 */
+.editor-body .lp-image-wrap {
+  position: relative;
+  display: inline-block;
+}
+.editor-body .lp-image-toolbar {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+  z-index: 10;
+  background: var(--editor-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+}
+.editor-body .lp-image-wrap:hover .lp-image-toolbar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 有序列表序号：淡化（数字对阅读有意义，不隐藏） */
+.editor-body .lp-ordered-mark {
+  color: var(--text-secondary);
+}
+
+/* 硬换行指示器 */
+.editor-body .lp-hardbreak {
+  color: var(--text-secondary);
+  font-size: 0.75em;
+  user-select: none;
+}
+
+/* 代码块语言标签 */
+.editor-body .lp-code-info {
+  color: var(--text-secondary);
+  font-size: 0.82em;
+  font-style: italic;
+}
+
+/* 上标 */
+.editor-body .lp-sup {
+  vertical-align: super;
+  font-size: 0.78em;
+}
+
+/* 下标 */
+.editor-body .lp-sub {
+  vertical-align: sub;
+  font-size: 0.78em;
+}
+
+/* ------------------------------------------------------------------ */
+/* ── 通用工具类 ────────────────────────────────────────── */
+/* ------------------------------------------------------------------ */
+
+/* 隐藏滚动条（跨浏览器） */
+.scrollbar-none {
+  -ms-overflow-style: none;      /* IE/Edge */
+  scrollbar-width: none;         /* Firefox */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;                 /* Chrome/Safari/Opera */
+}
+
+/* 毛玻璃工具类（带降级） */
+.glass-surface {
+  background: var(--editor-bg);  /* fallback */
+  border: 1px solid var(--glass-border);
+}
+@supports (backdrop-filter: blur(1px)) {
+  .glass-surface {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px) saturate(1.2);
+  }
+}
+
+/* 深浅模糊变体 */
+.glass-light {
+  backdrop-filter: blur(14px) saturate(1.1);
+}
+.glass-heavy {
+  backdrop-filter: blur(24px) saturate(1.3);
+}
+
+/* 工具提示淡入 */
+.tooltip-fade {
+  transition: opacity 0.12s ease-out;
+}
+
+@keyframes menu-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes dialog-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-menu-in {
+  animation: menu-in 0.15s ease-out;
+}
+.animate-dialog-in {
+  animation: dialog-in 0.2s ease-out;
+}
+
+.hover-transition {
+  transition: background-color 0.15s ease-out, color 0.15s ease-out,
+              border-color 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+
+/* ── 自定义标题栏窗口控制按钮（Linux/Windows）─────────── */
+
+.win-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.win-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.win-btn-close:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
+/* ---- 协议弹窗 Markdown 渲染 ---- */
+.agreement-content h1 {
+  @apply text-[16px] font-bold text-foreground mb-3 mt-0;
+}
+.agreement-content h2 {
+  @apply text-[14px] font-semibold text-foreground mb-2 mt-5;
+}
+.agreement-content h3 {
+  @apply text-[13px] font-semibold text-foreground mb-1.5 mt-4;
+}
+.agreement-content p {
+  @apply mb-2;
+}
+.agreement-content ul,
+.agreement-content ol {
+  @apply mb-2 pl-5;
+}
+.agreement-content li {
+  @apply mb-1 list-disc;
+}
+.agreement-content strong {
+  @apply font-semibold text-foreground;
+}
+.agreement-content a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--accent-soft);
+  cursor: pointer;
+}
+.agreement-content hr {
+  @apply my-4 border-border;
+}
