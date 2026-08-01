@@ -136,9 +136,7 @@ Git 凭据在配置文件和 OS keyring 之间有自动降级机制。
 本项目采用 **MIT License** 开源，完整许可文本见 [LICENSE](LICENSE)。
 
 - **代码**：即记 (Jot) 的源代码按 MIT 许可证授权，可自由使用、复制、修改、分发。
-- **商标**："即记"、"Jot" 名称及相关图形标识为 apidata.cc 的品牌标识，MIT 许可证不授予商标使用权。修改版本请勿使用原品牌标识，以免造成混淆。
 - **第三方依赖**：本项目使用了 Tauri、React、CodeMirror 6、KaTeX、Mermaid、Zustand 等开源组件，各自遵循其自身许可证。
-- **隐私与协议**：官方版本的《[隐私政策](src-tauri/resources/隐私政策.md)》与《[用户协议](src-tauri/resources/用户协议.md)》内置在应用中，可在「帮助」菜单查看。
 
 ## 🤝 贡献
 
