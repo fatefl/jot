@@ -80,6 +80,11 @@ jobs:
           cargo build --release -p jot-mcp --target aarch64-apple-darwin
           cargo build --release -p jot-mcp --target x86_64-apple-darwin
           mkdir -p src-tauri/binaries
+          # universal 构建会按每个架构分别 cargo build，tauri-build 在编译时
+          # 校验 binaries/jot-mcp-<target-triple> 存在，因此需 per-arch 副本；
+          # universal 版本供打包阶段 lipo 使用
+          cp target/aarch64-apple-darwin/release/jot-mcp src-tauri/binaries/jot-mcp-aarch64-apple-darwin
+          cp target/x86_64-apple-darwin/release/jot-mcp src-tauri/binaries/jot-mcp-x86_64-apple-darwin
           lipo -create \
             target/aarch64-apple-darwin/release/jot-mcp \
             target/x86_64-apple-darwin/release/jot-mcp \
