@@ -13,6 +13,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 import { CommandPalette } from "./CommandPalette";
+import { api } from "@/lib/tauri";
 import type { TreeNode } from "@/lib/tauri";
 
 // Mock api.searchContent
@@ -27,6 +28,9 @@ beforeEach(() => {
   if (!HTMLElement.prototype.scrollIntoView) {
     HTMLElement.prototype.scrollIntoView = vi.fn();
   }
+  // 重设默认实现：防止任何时序下 mock 被清成无实现（调用返回 undefined），
+  // 导致组件 300ms 防抖定时器回调触发未处理异常
+  vi.mocked(api.searchContent).mockResolvedValue([]);
 });
 
 function makeNode(

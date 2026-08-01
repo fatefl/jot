@@ -107,7 +107,14 @@ export function CommandPalette({
     const id = ++searchIdRef.current;
     setSearching(true);
     const t = setTimeout(() => {
-      api.searchContent(notesDir, query.trim()).then((matches) => {
+      // 防御：searchContent 在个别环境（如 mock 被重置）下可能返回 undefined，
+      // 直接 .then 会产生未处理异常；生产环境 invoke 恒返回 Promise，此分支不触发
+      const p = api.searchContent(notesDir, query.trim());
+      if (!p || typeof p.then !== "function") {
+        if (id === searchIdRef.current) setSearching(false);
+        return;
+      }
+      p.then((matches) => {
         if (id !== searchIdRef.current) return;
         // 排除已经通过文件名搜索匹配到的
         const namePaths = new Set(nameResults.map((n) => n.path));
