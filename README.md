@@ -10,6 +10,10 @@
 
 Jot 是一款 **Tauri 2** 驱动的跨平台桌面笔记工具，工作方式类似 VS Code 或 IDEA：笔记就是磁盘上按真实目录组织的 Markdown 文件，没有数据库，没有专有格式。内置 Git 同步引擎，让你的笔记在多设备间自动同步。
 
+<p align="center">
+  <img src="docs/screenshots/app.png" alt="即记 (Jot) 主界面" width="80%" />
+</p>
+
 ## ✨ 功能特性
 
 - **📝 所见即所得编辑** — 基于 CodeMirror 6 的自定义即时渲染引擎，隐藏 Markdown 语法标记，直接显示格式化效果（粗体、标题、表格、图片、复选框等），切换源码模式即可编辑原始 Markdown
