@@ -1953,12 +1953,29 @@ export function livePreview(options: LivePreviewOptions = {}): Extension {
     return decos;
   }
 
+  /** 首帧强制解析预算：与「初始 ~3000 字符 ≈ 视口首屏」设计一致。jsdom 无布局或
+   *  慢机下 parseWorker 首帧可能未推进到该区间，直接读 syntaxTree 得到的树不完整，
+   *  首帧装饰缺失（行内节点显示为源码，livePreview-incremental.test.ts 曾 flake）。
+   *  用有界预算的 ensureSyntaxTree 保证扫描区间已同步解析：小文档即全文（确定性
+   *  完整），大文档只解析视口前缀、不阻塞冷开，其余仍由 parseWorker / longDocParse
+   *  Plugin 后台分片补齐。 */
+  const INITIAL_PARSE_CHARS = 3000;
+  const INITIAL_PARSE_BUDGET_MS = 100;
   function build(view: EditorView): DecorationSet {
     // 只扫已解析区间（初始 ~3000 字符 ≈ 视口首屏）：冷开不烧全量解析预算。
     // 小文档（<3000 字符）树即全文 → 装饰完整，滚动条稳定；大文档全文补齐
     // 由 parseWorker / longDocParsePlugin 后台分片推进，树推进事务经
     // mergeRanges 增量补齐新区间（见 update()），不再阻塞主线程。
     const t0 = performance.now();
+    // 先确保首屏区间已同步解析，再读树扫描（见上方常量注释）
+    const docLen = view.state.doc.length;
+    if (docLen > 0) {
+      ensureSyntaxTree(
+        view.state,
+        Math.min(docLen, INITIAL_PARSE_CHARS),
+        INITIAL_PARSE_BUDGET_MS,
+      );
+    }
     const tree = syntaxTree(view.state);
     if (!tree) return Decoration.none;
     const t1 = performance.now();
