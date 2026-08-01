@@ -90,14 +90,15 @@ fn send_request(binary: &str, data_dir: &str, request: &str) -> String {
 /// 获取 jot-mcp 二进制路径
 fn binary_path() -> String {
     // cargo test 环境下 CARGO_MANIFEST_DIR = src-mcp/
-    // 二进制在 target/debug/jot-mcp
+    // 二进制在 target/<profile>/jot-mcp，Windows 上带 .exe 后缀
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin_name = format!("jot-mcp{}", std::env::consts::EXE_SUFFIX);
     let target_dir = manifest_dir
         .parent()
         .unwrap()
         .join("target")
         .join("debug")
-        .join("jot-mcp");
+        .join(&bin_name);
     if target_dir.exists() {
         return target_dir.to_string_lossy().to_string();
     }
@@ -107,7 +108,7 @@ fn binary_path() -> String {
         .unwrap()
         .join("target")
         .join("release")
-        .join("jot-mcp");
+        .join(&bin_name);
     if release.exists() {
         return release.to_string_lossy().to_string();
     }
