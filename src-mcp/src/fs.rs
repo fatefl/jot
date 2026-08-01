@@ -316,6 +316,10 @@ mod tests {
         assert!(result.unwrap_err().contains(".."));
     }
 
+    // symlink 逃逸检测依赖 Unix 符号链接语义；Windows 上创建符号链接需开发者模式权限，
+    // CI 不可靠，故仅在 Unix 上测试（resolve 的越界边界检查逻辑本身是跨平台的，
+    // `..` 穿越已有 reject_dotdot 跨平台覆盖）
+    #[cfg(unix)]
     #[test]
     fn reject_symlink_escape() {
         let (sb, tmp) = setup_sandbox();
