@@ -2360,13 +2360,33 @@ fn read_resource(app: tauri::AppHandle, name: String) -> Result<String, String> 
     fs::read_to_string(&path).map_err(|e| format!("读取资源失败: {}", e))
 }
 
+/// 解决 WebKitGTK 在 Wayland + 旧款 Intel 集显（Haswell/Gen7 及更早，
+/// Mesa crocus 驱动）下无法启动的问题。
+///
+/// 症状：应用一启动即打印
+///   "Could not create default EGL display: EGL_BAD_PARAMETER. Aborting..."
+/// 然后进程直接退出。该错误发生在 WebKit 初始化阶段，Rust 侧捕获不到，
+/// 只能在创建 WebView 之前提前设置环境变量。
+///
+/// 修复只针对 Wayland 会话禁用 DMABUF 渲染器（回退到共享内存缓冲），
+/// X11 用户保持完全加速。不使用 WEBKIT_DISABLE_COMPOSITING_MODE——
+/// 它会关闭整个 GPU 合成，导致全平台字体渲染变糊（早期版本的教训）。
+/// 若用户已在 shell 里显式设置过这两个变量，则尊重用户选择不覆盖。
+#[cfg(target_os = "linux")]
+fn apply_webkit_wayland_compat() {
+    let is_wayland = std::env::var_os("XDG_SESSION_TYPE")
+        .map_or(false, |v| v == "wayland");
+    if is_wayland && std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // 注意：不再无条件关闭 WebKit GPU 合成。
-    // 早期版本为缓解 X11 双屏混 DPI 文字间歇模糊而设置
-    // WEBKIT_DISABLE_COMPOSITING_MODE=1 / WEBKIT_DISABLE_DMABUF_RENDERER=1，
-    // 但副作用是**所有** Linux 用户（包括单屏）字体渲染质量下降。
-    // 若特定环境下仍需这些环境变量，用户可自行设置。
+    // 必须在 WebKit 初始化（首个 WebView 创建）之前设置，故放在 run() 最顶部
+    #[cfg(target_os = "linux")]
+    apply_webkit_wayland_compat();
+
     // 512x512 用于系统托盘（需要较大源图以保证在各种 DPI 下缩放清晰）
     let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))
         .expect("Failed to load tray icon");
