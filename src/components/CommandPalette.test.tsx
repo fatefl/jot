@@ -11,7 +11,7 @@
 // - 内容搜索防抖接口（input 触发）
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, act } from "@testing-library/react";
 import { CommandPalette } from "./CommandPalette";
 import { api } from "@/lib/tauri";
 import type { TreeNode } from "@/lib/tauri";
@@ -274,5 +274,56 @@ describe("CommandPalette — 鼠标交互", () => {
     fireEvent.click(btn);
     expect(onOpenFile).toHaveBeenCalledWith("/notes/readme.md", undefined);
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("CommandPalette — 内容搜索", () => {
+  it("单字符输入触发内容搜索（中文刚需）", () => {
+    vi.useFakeTimers();
+    const { container } = renderPalette();
+    const inp = inputEl(container)!;
+    fireEvent.change(inp, { target: { value: "记" } });
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(api.searchContent).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("文件名匹配优先于内容匹配，内容按 matchCount 排序", async () => {
+    vi.useFakeTimers();
+    vi.mocked(api.searchContent).mockResolvedValue([
+      { name: "alpha", path: "/notes/alpha.md", line: 3, context: "git 使用记录", matchCount: 5 },
+      { name: "beta", path: "/notes/beta.md", line: 1, context: "git 说明", matchCount: 1 },
+    ]);
+    const notes: TreeNode[] = [
+      makeNode("/notes", "notes", true, [
+        makeNode("/notes/git.md", "git.md", false),
+        makeNode("/notes/alpha.md", "alpha.md", false),
+        makeNode("/notes/beta.md", "beta.md", false),
+      ]),
+    ];
+    const { container } = render(
+      <CommandPalette
+        open={true}
+        notes={notes}
+        notesDir="/notes"
+        recentPaths={[]}
+        onOpenFile={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    const inp = inputEl(container)!;
+    fireEvent.change(inp, { target: { value: "git" } });
+    act(() => { vi.advanceTimersByTime(200); });
+    await act(async () => { await Promise.resolve(); }); // flush mock promise
+
+    const btns = resultBtns(container);
+    expect(btns[0].textContent).toContain("git.md"); // 文件名命中 180 第一
+    const texts = btns.map((b) => b.textContent ?? "");
+    const idxAlpha = texts.findIndex((t) => t.includes("alpha.md"));
+    const idxBeta = texts.findIndex((t) => t.includes("beta.md"));
+    expect(idxAlpha).toBeGreaterThanOrEqual(0);
+    expect(idxBeta).toBeGreaterThanOrEqual(0);
+    expect(idxAlpha).toBeLessThan(idxBeta); // matchCount 5 → 50 分 > 1 → 10 分
+    vi.useRealTimers();
   });
 });

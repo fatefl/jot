@@ -37,11 +37,18 @@ const editorSetState = vi.mocked(useEditorStore.setState);
 const fakeEditorState = (s: Partial<ReturnType<typeof useEditorStore.getState>>) =>
   s as ReturnType<typeof useEditorStore.getState>;
 
-const match = (name: string, path: string, line: number, context: string) => ({
+const match = (
+  name: string,
+  path: string,
+  line: number,
+  context: string,
+  matchCount = 1,
+) => ({
   name,
   path,
   line,
   context,
+  matchCount,
 });
 
 beforeEach(() => {

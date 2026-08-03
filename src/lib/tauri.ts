@@ -89,6 +89,7 @@ export interface SearchMatch {
   path: string;
   line: number;
   context: string;
+  matchCount: number;
 }
 
 export interface TemplateInfo {

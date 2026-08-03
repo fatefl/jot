@@ -14,6 +14,8 @@ export interface PaletteItem {
   matchContext?: string;
   /** 内容匹配 */
   kind?: "file" | "content";
+  /** 统一排序分：文件名 200/180/140/100，内容 ≤90 */
+  score: number;
 }
 
 interface CommandPaletteProps {
@@ -41,6 +43,7 @@ function collectPaletteItems(nodes: TreeNode[], notesDir: string): PaletteItem[]
           path: n.path,
           relDir: i > 0 ? rel.slice(0, i) : "",
           kind: "file",
+          score: 0,
         });
       }
     }
@@ -51,9 +54,7 @@ function collectPaletteItems(nodes: TreeNode[], notesDir: string): PaletteItem[]
 
 function fuzzyMatch(items: PaletteItem[], query: string): PaletteItem[] {
   const q = query.toLowerCase();
-  const seen = new Set<string>();
-  const out: PaletteItem[] = [];
-  const scored = items
+  return items
     .map((item) => {
       const name = item.name.toLowerCase();
       const path = item.path.toLowerCase();
@@ -62,12 +63,16 @@ function fuzzyMatch(items: PaletteItem[], query: string): PaletteItem[] {
       else if (name.startsWith(q)) score = 180;
       else if (name.includes(q)) score = 140;
       else if (path.includes(q)) score = 100;
-      if (score > 0) { seen.add(item.path); out.push({ ...item }); }
-      return { item, score };
+      return { ...item, score };
     })
     .filter((s) => s.score > 0)
-    .sort((a, b) => b.score - a.score);
-  return scored.slice(0, 10).map((s) => ({ ...s.item, kind: "file" as const }));
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
+}
+
+/** 内容命中分：匹配次数越多、行越靠前越高；上限 90 < 文件名最低分 100 */
+function contentScore(matchCount: number, line: number): number {
+  return Math.max(0, Math.min(90, 10 * matchCount - Math.floor(line / 10)));
 }
 
 export function CommandPalette({
@@ -97,9 +102,9 @@ export function CommandPalette({
     return fuzzyMatch(allItems, query);
   }, [query, allItems]);
 
-  // 内容搜索（300ms 防抖）
+  // 内容搜索（200ms 防抖）
   useEffect(() => {
-    if (!query.trim() || query.length < 2) {
+    if (!query.trim()) {
       setContentResults([]);
       setSearching(false);
       return;
@@ -128,6 +133,7 @@ export function CommandPalette({
             matchLine: m.line,
             matchContext: m.context,
             kind: "content",
+            score: contentScore(m.matchCount, m.line),
           });
         }
         setContentResults(items.slice(0, 10));
@@ -135,7 +141,7 @@ export function CommandPalette({
       }).catch(() => {
         if (id === searchIdRef.current) setSearching(false);
       });
-    }, 300);
+    }, 200);
     return () => { clearTimeout(t); };
   }, [query, notesDir, nameResults]);
 
@@ -145,7 +151,9 @@ export function CommandPalette({
         .map((p) => allItems.find((item) => item.path === p))
         .filter(Boolean) as PaletteItem[];
     }
-    return [...nameResults, ...contentResults];
+    return [...nameResults, ...contentResults]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
   }, [query, allItems, recentPaths, nameResults, contentResults]);
 
   // 重置状态
