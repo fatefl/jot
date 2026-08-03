@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { FileSearch, FileText, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/tauri";
@@ -73,6 +73,29 @@ function fuzzyMatch(items: PaletteItem[], query: string): PaletteItem[] {
 /** 内容命中分：匹配次数越多、行越靠前越高；上限 90 < 文件名最低分 100 */
 function contentScore(matchCount: number, line: number): number {
   return Math.max(0, Math.min(90, 10 * matchCount - Math.floor(line / 10)));
+}
+
+/** 在 context 行内按 query 高亮命中片段，返回 React 节点数组（避免 dangerouslySetInnerHTML） */
+function highlight(text: string, query: string): ReactNode[] {
+  const q = query.toLowerCase();
+  const nodes: ReactNode[] = [];
+  let rest = text;
+  let key = 0;
+  while (rest.length > 0) {
+    const idx = rest.toLowerCase().indexOf(q);
+    if (idx < 0) {
+      nodes.push(rest);
+      break;
+    }
+    if (idx > 0) nodes.push(rest.slice(0, idx));
+    nodes.push(
+      <mark key={key++} className="search-hit">
+        {rest.slice(idx, idx + q.length)}
+      </mark>,
+    );
+    rest = rest.slice(idx + q.length);
+  }
+  return nodes;
 }
 
 export function CommandPalette({
@@ -249,7 +272,9 @@ export function CommandPalette({
                   )}
                 </span>
                 {item.matchContext ? (
-                  <span className="block truncate text-xs text-secondary">{item.matchContext}</span>
+                  <span className="block truncate text-xs text-secondary">
+                    {highlight(item.matchContext, query)}
+                  </span>
                 ) : item.relDir ? (
                   <span className="block truncate text-xs text-secondary">{item.relDir}</span>
                 ) : null}

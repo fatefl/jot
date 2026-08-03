@@ -326,4 +326,35 @@ describe("CommandPalette — 内容搜索", () => {
     expect(idxAlpha).toBeLessThan(idxBeta); // matchCount 5 → 50 分 > 1 → 10 分
     vi.useRealTimers();
   });
+
+  it("内容结果上下文关键词高亮", async () => {
+    vi.useFakeTimers();
+    vi.mocked(api.searchContent).mockResolvedValue([
+      { name: "alpha", path: "/notes/alpha.md", line: 1, context: "git 使用记录 git", matchCount: 1 },
+    ]);
+    const notes: TreeNode[] = [
+      makeNode("/notes", "notes", true, [
+        makeNode("/notes/alpha.md", "alpha.md", false),
+      ]),
+    ];
+    const { container } = render(
+      <CommandPalette
+        open={true}
+        notes={notes}
+        notesDir="/notes"
+        recentPaths={[]}
+        onOpenFile={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    const inp = inputEl(container)!;
+    fireEvent.change(inp, { target: { value: "git" } });
+    act(() => { vi.advanceTimersByTime(200); });
+    await act(async () => { await Promise.resolve(); });
+
+    const marks = container.querySelectorAll("mark");
+    expect(marks.length).toBe(2);
+    expect(marks[0].textContent).toBe("git");
+    vi.useRealTimers();
+  });
 });
