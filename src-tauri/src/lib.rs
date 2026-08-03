@@ -136,6 +136,7 @@ struct SearchMatch {
     path: String,
     line: usize,
     context: String,
+    match_count: usize,
 }
 
 #[derive(Serialize)]
@@ -810,25 +811,41 @@ fn file_mtime(path: String) -> Result<u64, String> {
         .unwrap_or(0))
 }
 
+const MAX_SEARCH_DEPTH: usize = 12;
+const MAX_FILE_BYTES: u64 = 5 * 1024 * 1024;
+const MAX_SEARCH_RESULTS: usize = 200;
+
 #[tauri::command]
-fn search_content(dir: String, query: String) -> Vec<SearchMatch> {
+async fn search_content(dir: String, query: String) -> Vec<SearchMatch> {
+    tauri::async_runtime::spawn_blocking(move || search_content_blocking(&dir, &query))
+        .await
+        .unwrap_or_default()
+}
+
+fn search_content_blocking(dir: &str, query: &str) -> Vec<SearchMatch> {
     let q = query.to_lowercase();
     let mut results: Vec<SearchMatch> = Vec::new();
-    search_walk(Path::new(&dir), &q, &mut results);
+    search_walk(Path::new(dir), &q, &mut results, 0);
     results.sort_by(|a, b| {
-        a.name
-            .to_lowercase()
-            .cmp(&b.name.to_lowercase())
+        b.match_count
+            .cmp(&a.match_count)
+            .then_with(|| a.line.cmp(&b.line))
     });
     results
 }
 
-fn search_walk(dir: &Path, query: &str, out: &mut Vec<SearchMatch>) {
+fn search_walk(dir: &Path, query: &str, out: &mut Vec<SearchMatch>, depth: usize) {
+    if depth > MAX_SEARCH_DEPTH {
+        return;
+    }
     let entries = match fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return,
     };
     for entry in entries.flatten() {
+        if out.len() >= MAX_SEARCH_RESULTS {
+            return;
+        }
         let path = entry.path();
         let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
         if name.starts_with('.') || name.starts_with('_') {
@@ -839,30 +856,44 @@ fn search_walk(dir: &Path, query: &str, out: &mut Vec<SearchMatch>) {
             continue;
         }
         if path.is_dir() {
-            search_walk(&path, query, out);
+            search_walk(&path, query, out, depth + 1);
         } else if path.extension().and_then(|e| e.to_str()) == Some("md") {
+            // 超大文件跳过，避免单文件逐行扫描拖慢整体搜索
+            if fs::metadata(&path).map(|m| m.len()).unwrap_or(0) > MAX_FILE_BYTES {
+                continue;
+            }
             if let Ok(content) = fs::read_to_string(&path) {
+                let mut first_line = 0usize;
+                let mut context = String::new();
+                let mut count = 0usize;
                 for (idx, line) in content.lines().enumerate() {
                     if line.to_lowercase().contains(query) {
-                        let ctx = if line.len() > 120 {
-                            format!("{}…", &line[..117])
-                        } else {
-                            line.to_string()
-                        };
-                        out.push(SearchMatch {
-                            name: path
-                                .file_stem()
-                                .and_then(|n| n.to_str())
-                                .unwrap_or(name)
-                                .to_string(),
-                            path: disp(&path),
-                            line: idx + 1,
-                            context: ctx,
-                        });
-                        if out.len() >= 200 {
-                            return;
+                        if count == 0 {
+                            first_line = idx + 1;
+                            context = if line.len() > 120 {
+                                // 与 truncate_line 相同的字符边界截断：117 是字节索引，
+                                // 落在多字节字符（emoji/中文混排）内部时字节切片会 panic → 闪退
+                                let end = line.floor_char_boundary(117);
+                                format!("{}…", &line[..end])
+                            } else {
+                                line.to_string()
+                            };
                         }
+                        count += 1;
                     }
+                }
+                if count > 0 {
+                    out.push(SearchMatch {
+                        name: path
+                            .file_stem()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or(name)
+                            .to_string(),
+                        path: disp(&path),
+                        line: first_line,
+                        context,
+                        match_count: count,
+                    });
                 }
             }
         }
@@ -3226,6 +3257,120 @@ mod tests {
         // 上下文被截断且以省略号结尾（能到这里说明没有 panic）
         assert!(results[0].context.ends_with('…'));
         assert!(results[0].context.chars().count() <= 101);
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn search_content_long_line_with_emoji_no_panic() {
+        let tmp = mk_vault("search-emoji");
+        // 38 汉字(114B) + 2 个 emoji(8B) + 关键词 = 138B > 120，第 117 字节落在第 1 个 emoji
+        // 内部（bytes 114..118），旧实现 `&line[..117]` 会在字符中间切片 panic → 应用闪退
+        let long_line = format!("{}🎉🎉 搜索关键词", "中".repeat(38));
+        fs::write(tmp.join("a.md"), format!("{}\n", long_line)).unwrap();
+
+        let results = search_content_blocking(&tmp.to_string_lossy(), "关键词");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].line, 1);
+        // 上下文被截断且以省略号结尾（能到这里说明没有 panic）
+        assert!(results[0].context.ends_with('…'));
+        assert!(results[0].context.chars().count() <= 41);
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn search_content_pure_chinese_long_line_no_panic() {
+        let tmp = mk_vault("search-long-cn");
+        // 41 个汉字(123B > 120)，117 = 39×3 恰好是字符边界，旧实现碰巧不 panic——回归保护
+        let long_line = "中".repeat(41);
+        fs::write(tmp.join("a.md"), format!("{}\n", long_line)).unwrap();
+
+        let results = search_content_blocking(&tmp.to_string_lossy(), "中");
+        assert_eq!(results.len(), 1);
+        assert!(results[0].context.ends_with('…'));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn search_content_aggregates_per_file() {
+        let tmp = mk_vault("search-agg");
+        fs::write(
+            tmp.join("a.md"),
+            "第一行没有命中\n记录 git 使用\n中间\n记录 git 配置\n",
+        )
+        .unwrap();
+        let results = search_content_blocking(&tmp.to_string_lossy(), "记录");
+        assert_eq!(results.len(), 1, "每文件只聚合一条");
+        assert_eq!(results[0].name, "a");
+        assert_eq!(results[0].line, 2, "取最早命中行");
+        assert_eq!(results[0].match_count, 2, "命中行数聚合");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn search_content_limit_200_files() {
+        let tmp = mk_vault("search-200");
+        for i in 1..=201 {
+            fs::write(tmp.join(format!("n{:03}.md", i)), "共享关键词\n").unwrap();
+        }
+        let results = search_content_blocking(&tmp.to_string_lossy(), "共享关键词");
+        assert_eq!(results.len(), 200, "上限 200 个文件");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn search_content_sorts_by_match_count() {
+        let tmp = mk_vault("search-sort");
+        fs::write(tmp.join("b.md"), "关键词\n关键词\n关键词\n").unwrap();
+        fs::write(tmp.join("a.md"), "关键词\n").unwrap();
+        let results = search_content_blocking(&tmp.to_string_lossy(), "关键词");
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].name, "b", "match_count 多的排前");
+        assert_eq!(results[0].match_count, 3);
+        assert_eq!(results[1].name, "a");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn search_content_depth_limit() {
+        let tmp = mk_vault("search-depth");
+        // 12 层内可搜到
+        let mut dir12 = tmp.clone();
+        for i in 1..=12 {
+            dir12 = dir12.join(format!("d{}", i));
+        }
+        fs::create_dir_all(&dir12).unwrap();
+        fs::write(dir12.join("deep12.md"), "深层关键词\n").unwrap();
+        // 13 层搜不到（depth > 12 直接返回）
+        let dir13 = dir12.join("d13");
+        fs::create_dir_all(&dir13).unwrap();
+        fs::write(dir13.join("deep13.md"), "深层关键词\n").unwrap();
+
+        let results = search_content_blocking(&tmp.to_string_lossy(), "深层关键词");
+        let names: Vec<&str> = results.iter().map(|r| r.name.as_str()).collect();
+        assert!(names.contains(&"deep12"), "12 层内应搜到");
+        assert!(!names.contains(&"deep13"), "13 层应跳过");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn search_content_skips_large_file() {
+        let tmp = mk_vault("search-large");
+        let big = tmp.join("big.md");
+        fs::File::create(&big).unwrap().set_len(5 * 1024 * 1024 + 1).unwrap(); // 稀疏文件 >5MB
+        fs::write(tmp.join("small.md"), "关键词\n").unwrap();
+        let results = search_content_blocking(&tmp.to_string_lossy(), "关键词");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].name, "small");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn search_content_single_char() {
+        let tmp = mk_vault("search-1char");
+        fs::write(tmp.join("note.md"), "今天记了笔记\n").unwrap();
+        let results = search_content_blocking(&tmp.to_string_lossy(), "记");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].name, "note");
         let _ = fs::remove_dir_all(&tmp);
     }
 
