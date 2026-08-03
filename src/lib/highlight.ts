@@ -222,3 +222,66 @@ export function applyHighlight(view: EditorView, action: HighlightAction): boole
   view.focus();
   return true;
 }
+
+/** 关闭调色工具条（点击色块后手动关闭） */
+const dismissHighlightTooltip = StateEffect.define<void>();
+
+/** 工具条值类型：create 直接返回工具条 DOM 元素（供测试/插件访问）。
+ *  @codemirror/view 6.43 起 Tooltip.create 要求返回 TooltipView（含 dom 字段），
+ *  与模块内 create 返回裸元素的约定不同——因此单独声明本类型，
+ *  并在 provide 处做一次窄化转换，测试与 showTooltip 两侧都能编译。 */
+type HighlightTooltip = {
+  pos: number;
+  above: boolean;
+  create: (view: EditorView) => HTMLElement;
+};
+
+/** 调色工具条可见性：非空选区显示，选区变空/滚动后自动关闭 */
+export const highlightTooltipField = StateField.define<HighlightTooltip | null>({
+  create() {
+    return null;
+  },
+  update(value, tr) {
+    if (tr.effects.some((e) => e.is(dismissHighlightTooltip))) return null;
+    if (!tr.selection) return value;
+    const sel = tr.state.selection.main;
+    if (sel.empty) return null;
+    return { pos: sel.head, above: true, create: createHighlightBar };
+  },
+  provide: (f) => showTooltip.from(f as unknown as StateField<Tooltip | null>),
+});
+
+/** 高亮调色工具条扩展（选中文字后浮出） */
+export function highlightTooltip(): Extension {
+  return highlightTooltipField;
+}
+
+/** 工具条 DOM：默认黄 + 7 命名色 + 清除 */
+function createHighlightBar(view: EditorView): HTMLElement {
+  const bar = document.createElement("div");
+  bar.className = "hl-toolbar";
+  const swatches: { label: string; cls: string; action: HighlightAction }[] = [
+    { label: "默认", cls: "yellow", action: { kind: "apply", color: null } },
+    ...HL_COLORS.map((c): { label: string; cls: string; action: HighlightAction } => ({
+      label: c.label,
+      cls: c.id,
+      action: { kind: "apply", color: c.id },
+    })),
+    { label: "清除", cls: "clear", action: { kind: "clear" } },
+  ];
+  for (const s of swatches) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `hl-swatch hl-swatch-${s.cls}`;
+    btn.title = s.label;
+    btn.addEventListener("mousedown", (e) => {
+      e.preventDefault(); // 阻止编辑器失焦导致选区丢失
+      applyHighlight(view, s.action);
+      view.dispatch({ effects: dismissHighlightTooltip.of() });
+    });
+    bar.appendChild(btn);
+  }
+  // dom 自引用：使工具条元素同时满足 TooltipView 契约（tooltips 插件读取 .dom），
+  // 应用侧启用 tooltips() 插件时不会因 tooltipView.dom 为空而崩溃
+  return Object.assign(bar, { dom: bar });
+}

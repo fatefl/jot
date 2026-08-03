@@ -3,7 +3,14 @@ import { describe, expect, it } from "vitest";
 import { EditorView } from "@codemirror/view";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
-import { applyHighlight, planHighlightEdit, planLineWrap, scanHighlights } from "./highlight";
+import {
+  applyHighlight,
+  highlightTooltip,
+  highlightTooltipField,
+  planHighlightEdit,
+  planLineWrap,
+  scanHighlights,
+} from "./highlight";
 import { livePreview } from "./livePreview";
 
 describe("scanHighlights", () => {
@@ -273,6 +280,68 @@ describe("applyHighlight（EditorView 集成）", () => {
     view.dispatch({ selection: { anchor: 1, head: 4 } });
     applyHighlight(view, { kind: "apply", color: null });
     expect(view.state.doc.toString()).toBe("a==b==\n==c==d");
+    view.destroy();
+  });
+});
+
+describe("highlightTooltip 调色工具条", () => {
+  // 与 applyHighlight 测试同理：剥除/改色路径需要 markdown 语法树
+  function buildView(doc: string): EditorView {
+    return new EditorView({
+      doc,
+      parent: document.body,
+      extensions: [
+        markdown({ base: markdownLanguage, codeLanguages: languages }),
+        highlightTooltip(),
+      ],
+    });
+  }
+
+  it("空选区不显示", () => {
+    const view = buildView("abc");
+    expect(view.state.field(highlightTooltipField)).toBeNull();
+    view.destroy();
+  });
+
+  it("非空选区显示，位置在选区头", () => {
+    const view = buildView("abc def");
+    view.dispatch({ selection: { anchor: 0, head: 3 } });
+    const tip = view.state.field(highlightTooltipField);
+    expect(tip).not.toBeNull();
+    expect(tip!.pos).toBe(3);
+    view.destroy();
+  });
+
+  it("选区变空关闭", () => {
+    const view = buildView("abc");
+    view.dispatch({ selection: { anchor: 0, head: 3 } });
+    view.dispatch({ selection: { anchor: 0 } });
+    expect(view.state.field(highlightTooltipField)).toBeNull();
+    view.destroy();
+  });
+
+  it("点击色块写回并关闭工具条", () => {
+    const view = buildView("abc def");
+    view.dispatch({ selection: { anchor: 0, head: 3 } });
+    const tip = view.state.field(highlightTooltipField)!;
+    const bar = tip.create(view);
+    expect(bar.className).toBe("hl-toolbar");
+    expect(bar.querySelectorAll("button")).toHaveLength(9); // 默认 + 7 色 + 清除
+    bar.querySelector<HTMLButtonElement>(".hl-swatch-red")!
+      .dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    expect(view.state.doc.toString()).toBe("=={红}abc== def");
+    expect(view.state.field(highlightTooltipField)).toBeNull();
+    view.destroy();
+  });
+
+  it("点击清除按钮剥除高亮", () => {
+    const view = buildView("=={红}abc== def");
+    view.dispatch({ selection: { anchor: 5, head: 8 } });
+    const tip = view.state.field(highlightTooltipField)!;
+    tip.create(view)
+      .querySelector<HTMLButtonElement>(".hl-swatch-clear")!
+      .dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    expect(view.state.doc.toString()).toBe("abc def");
     view.destroy();
   });
 });
