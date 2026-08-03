@@ -23,6 +23,7 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from "@codemirror/view";
+import { scanHighlights } from "./highlight";
 
 interface LivePreviewOptions {
   /** 当前笔记所在目录，用于把相对路径图片解析为可加载的 asset URL。
@@ -539,6 +540,23 @@ const HEADING_CLASS: Record<string, string> = {
   ATXHeading6: "lp-h6",
   SetextHeading1: "lp-h1",
   SetextHeading2: "lp-h2",
+};
+
+/** 高亮扫描需要避开的行内节点：代码、转义、链接 URL、行内 HTML */
+const HL_PROTECTED_INLINE = new Set([
+  "InlineCode",
+  "Escape",
+  "URL",
+  "HTMLTag",
+  "Comment",
+  "ProcessingInstruction",
+]);
+
+/** addHighlightDecorations 的最小节点结构类型 */
+type HighlightNodeRef = {
+  from: number;
+  to: number;
+  iterate(enter: (n: { name: string; from: number; to: number }) => unknown): void;
 };
 
 // --- 表格即时渲染 ---
@@ -1395,6 +1413,60 @@ export function livePreview(options: LivePreviewOptions = {}): Extension {
     return spans;
   }
 
+  // --- 高亮 =={色名}…==：扫描段落/标题文本并装饰 ---
+  // 保护区间：行内代码、转义、链接 URL、行内 HTML、行内公式 $…$
+  // （与 findMath 的行内正则一致；公式内容可含 ==，如 $x == y$）。
+  // 掩码策略：把保护区间替换为等长 'x'（偏移不变，split("") 按 UTF-16
+  // 码元，与正则偏移一致）再扫描——若只做"逐段跳过"，假匹配会吞掉
+  // 保护区间后真实高亮的 opener（如 "$x==y$ 后 =={红}重要==" 中
+  // "==y$ 后 ==" 会被误匹配）。掩码后假匹配根本不会产生。
+  // == 与 {色} 用零宽 replace 隐藏；未知 token 字面保留按默认黄渲染。
+  function addHighlightDecorations(
+    state: EditorState,
+    node: HighlightNodeRef,
+    hide: (from: number, to: number) => void,
+    mark: (from: number, to: number, cls: string) => void,
+  ): void {
+    let text = state.doc.sliceString(node.from, node.to);
+    if (!text.includes("==")) return;
+    const protectedRanges: Array<[number, number]> = [];
+    // node 是 buildRanges 遍历中的 TreeCursor：iterate 覆盖当前节点及全部后代
+    node.iterate((n) => {
+      if (HL_PROTECTED_INLINE.has(n.name)) {
+        protectedRanges.push([n.from - node.from, n.to - node.from]);
+      }
+    });
+    const inlineMathRe = /(?<!\$)\$(?!\$)([^$\n]+?)\$(?!\$)/g;
+    let mm: RegExpExecArray | null;
+    while ((mm = inlineMathRe.exec(text)) !== null) {
+      protectedRanges.push([mm.index, mm.index + mm[0].length]);
+    }
+    if (protectedRanges.length > 0) {
+      const masked = text.split("");
+      for (const [f, t] of protectedRanges) {
+        for (let i = f; i < t; i++) masked[i] = "x";
+      }
+      text = masked.join("");
+    }
+    for (const m of scanHighlights(text)) {
+      const start = node.from + m.start;
+      const end = node.from + m.end;
+      if (protectedRanges.some(([f, t]) => f < m.end && t > m.start)) continue;
+      hide(start, start + 2);
+      hide(end - 2, end);
+      if (m.tokenText && m.color) {
+        // 已知色：{红} 是语法，隐藏；内容按色渲染。
+        // 双类：lp-hl 提供基础底色，lp-hl-{色} 覆写颜色（测试约定
+        // querySelector(".lp-hl") 也能命中命名色元素）
+        hide(start + 2, start + 2 + m.tokenText.length);
+        mark(start + 2 + m.tokenText.length, end - 2, `lp-hl lp-hl-${m.color}`);
+      } else {
+        // 默认色：token（若有，未知 token）字面保留在内容里
+        mark(start + 2, end - 2, "lp-hl");
+      }
+    }
+  }
+
   function buildRanges(
     state: EditorState,
     tree: ReturnType<typeof syntaxTree>,
@@ -1429,9 +1501,16 @@ export function livePreview(options: LivePreviewOptions = {}): Extension {
 
           // --- 标题：行样式 + 隐藏 # 标记 ---
           const hClass = HEADING_CLASS[name];
-          if (hClass) {
-            const line = state.doc.lineAt(node.from);
-            addLine(line.from, Decoration.line({ class: hClass }));
+          if (name === "Paragraph" || hClass) {
+            // 高亮 =={色}…== 扫描（Paragraph/Heading 均可；不 return false，
+            // 子节点如 StrongEmphasis/链接仍需常规装饰）
+            // node 实参运行时是 TreeCursor（Tree.iterate 传的是游标，
+            // .d.ts 欠标为 SyntaxNodeRef），其 iterate 覆盖当前节点及全部后代
+            addHighlightDecorations(state, node as unknown as HighlightNodeRef, hide, mark);
+            if (hClass) {
+              const line = state.doc.lineAt(node.from);
+              addLine(line.from, Decoration.line({ class: hClass }));
+            }
             return;
           }
           if (name === "HeaderMark") {
