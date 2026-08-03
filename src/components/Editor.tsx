@@ -21,6 +21,7 @@ import { languages } from "@codemirror/language-data";
 import { tags as t } from "@lezer/highlight";
 import { livePreview, mermaidThemeEffect, parseMermaidFence, mermaidFenceWrap, setHtmlBadgeClickHandler, setLivePreviewAssetBase } from "@/lib/livePreview";
 import { bindEditorView, unbindEditorView, setActiveEditFinalizer } from "@/lib/editorViewCache";
+import { highlightTooltip } from "@/lib/highlight";
 import {
   editorKeymap,
   toggleMark,
@@ -1042,6 +1043,8 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         completionExt,
         editorKeymap,
+        // 高亮调色工具条（选区浮出；写回仅是文本操作，两种模式均生效）
+        highlightTooltip(),
         linkMouseHandler,
         clickEmptySpace,
         handleImagePaste,
