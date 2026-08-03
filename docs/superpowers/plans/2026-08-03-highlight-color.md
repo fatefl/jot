@@ -346,7 +346,6 @@ type HighlightNodeRef = {
 function addHighlightDecorations(
   state: EditorState,
   node: HighlightNodeRef,
-  add: (from: number, to: number, deco: Decoration) => void,
   hide: (from: number, to: number) => void,
   mark: (from: number, to: number, cls: string) => void,
 ): void {
@@ -398,7 +397,7 @@ const hClass = HEADING_CLASS[name];
 if (name === "Paragraph" || hClass) {
   // 高亮 =={色}…== 扫描（Paragraph/Heading 均可；不 return false，
   // 子节点如 StrongEmphasis/链接仍需常规装饰）
-  addHighlightDecorations(state, node, add, hide, mark);
+  addHighlightDecorations(state, node, hide, mark);
   if (hClass) {
     const line = state.doc.lineAt(node.from);
     addLine(line.from, Decoration.line({ class: hClass }));
