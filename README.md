@@ -3,9 +3,9 @@
 > 基于 Git 同步的桌面 Markdown 笔记应用 —— 笔记即 `.md` 文件，直接操作你的文件系统，无需导入/导出。
 
 <p align="center">
-  <img alt="License" src="https://img.shields.io/github/license/fatefl/jot" />
-  <img alt="Release" src="https://img.shields.io/github/v/release/fatefl/jot" />
-  <img alt="CI" src="https://github.com/fatefl/jot/actions/workflows/ci.yml/badge.svg" />
+  <img alt="License" src="https://img.shields.io/github/license/apidata-cc/jot" />
+  <img alt="Release" src="https://img.shields.io/github/v/release/apidata-cc/jot" />
+  <img alt="CI" src="https://github.com/apidata-cc/jot/actions/workflows/ci.yml/badge.svg" />
 </p>
 
 Jot 是一款 **Tauri 2** 驱动的跨平台桌面笔记工具，工作方式类似 VS Code 或 IDEA：笔记就是磁盘上按真实目录组织的 Markdown 文件，没有数据库，没有专有格式。内置 Git 同步引擎，让你的笔记在多设备间自动同步。
@@ -49,7 +49,7 @@ Jot 是一款 **Tauri 2** 驱动的跨平台桌面笔记工具，工作方式类
 
 ### 下载预编译包
 
-前往 [Releases](https://github.com/fatefl/jot/releases) 页面下载对应平台安装包：
+前往 [Releases](https://github.com/apidata-cc/jot/releases) 页面下载对应平台安装包：
 - **macOS**：`.dmg`
 - **Windows**：`.msi` / `.exe`
 - **Linux**：`.deb` / `.AppImage`
@@ -63,7 +63,7 @@ Jot 是一款 **Tauri 2** 驱动的跨平台桌面笔记工具，工作方式类
 
 ```bash
 # 克隆仓库
-git clone https://github.com/fatefl/jot.git
+git clone https://github.com/apidata-cc/jot.git
 cd jot
 
 # 安装依赖
@@ -144,7 +144,7 @@ Git 凭据在配置文件和 OS keyring 之间有自动降级机制。
 
 ## 🤝 贡献
 
-- **报告问题**：请通过 [Issues](https://github.com/fatefl/jot/issues) 提交，描述问题现象、复现步骤及系统环境。
+- **报告问题**：请通过 [Issues](https://github.com/apidata-cc/jot/issues) 提交，描述问题现象、复现步骤及系统环境。
 - **提交代码**：Fork 本仓库，提交 Pull Request。请确保 `pnpm build` 与 `pnpm test` 通过。
 - **构建依赖**：新克隆仓库后，先执行 `bash scripts/prepare-sidecar.sh` 准备 MCP sidecar，再运行 `pnpm tauri dev`。
 - **其他联系**：hi@apidata.cc

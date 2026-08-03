@@ -56,12 +56,12 @@ describe("fetchLatestRelease", () => {
       ok: true,
       json: async () => ({
         tag_name: "v0.1.17",
-        html_url: "https://github.com/fatefl/jot/releases/tag/v0.1.17",
+        html_url: "https://github.com/apidata-cc/jot/releases/tag/v0.1.17",
       }),
     })));
     await expect(fetchLatestRelease()).resolves.toEqual({
       tagName: "v0.1.17",
-      htmlUrl: "https://github.com/fatefl/jot/releases/tag/v0.1.17",
+      htmlUrl: "https://github.com/apidata-cc/jot/releases/tag/v0.1.17",
     });
   });
 
@@ -83,22 +83,22 @@ describe("checkForUpdate", () => {
   it("远端更新 → update-available", async () => {
     mockFetch({
       tag_name: "v0.1.17",
-      html_url: "https://github.com/fatefl/jot/releases/tag/v0.1.17",
+      html_url: "https://github.com/apidata-cc/jot/releases/tag/v0.1.17",
     });
     await expect(checkForUpdate("0.1.16")).resolves.toEqual({
       status: "update-available",
       latestVersion: "0.1.17",
-      downloadUrl: "https://github.com/fatefl/jot/releases/tag/v0.1.17",
+      downloadUrl: "https://github.com/apidata-cc/jot/releases/tag/v0.1.17",
     });
   });
 
   it("版本相同 → up-to-date", async () => {
-    mockFetch({ tag_name: "v0.1.19", html_url: "https://github.com/fatefl/jot/releases/latest" });
+    mockFetch({ tag_name: "v0.1.19", html_url: "https://github.com/apidata-cc/jot/releases/latest" });
     await expect(checkForUpdate("0.1.19")).resolves.toEqual({ status: "up-to-date" });
   });
 
   it("远端更旧 → up-to-date", async () => {
-    mockFetch({ tag_name: "v0.1.17", html_url: "https://github.com/fatefl/jot/releases/latest" });
+    mockFetch({ tag_name: "v0.1.17", html_url: "https://github.com/apidata-cc/jot/releases/latest" });
     await expect(checkForUpdate("0.1.19")).resolves.toEqual({ status: "up-to-date" });
   });
 
@@ -112,13 +112,13 @@ describe("checkForUpdate", () => {
       ok: true,
       json: async () => ({
         tag_name: "v0.1.17",
-        html_url: "https://github.com/fatefl/jot/releases/latest",
+        html_url: "https://github.com/apidata-cc/jot/releases/latest",
       }),
     }));
     vi.stubGlobal("fetch", fetchMock);
     await fetchLatestRelease();
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.github.com/repos/fatefl/jot/releases/latest",
+      "https://api.github.com/repos/apidata-cc/jot/releases/latest",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });

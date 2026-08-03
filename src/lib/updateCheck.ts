@@ -30,7 +30,7 @@ export interface LatestRelease {
   htmlUrl: string;
 }
 
-const RELEASES_LATEST_URL = "https://api.github.com/repos/fatefl/jot/releases/latest";
+const RELEASES_LATEST_URL = "https://api.github.com/repos/apidata-cc/jot/releases/latest";
 
 export async function fetchLatestRelease(): Promise<LatestRelease> {
   const res = await fetch(RELEASES_LATEST_URL, { signal: AbortSignal.timeout(15_000) });
