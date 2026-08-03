@@ -37,10 +37,14 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "shortDescription": "基于 Git 同步的跨平台桌面 Markdown 笔记应用。",
+    "longDescription": "笔记即 .md 文件，直接操作文件系统，无需导入导出。所见即所得编辑，内置自动同步、双向链接、标签聚合与多格式导出。",
     "resources": ["resources/*"],
     "linux": {
       "deb": {
-        "desktopTemplate": "deb.desktop.hbs"
+        "desktopTemplate": "deb.desktop.hbs",
+        "section": "utils",
+        "priority": "optional"
       }
     },
     "externalBin": ["binaries/jot-mcp"],
