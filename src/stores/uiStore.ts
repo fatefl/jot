@@ -2,6 +2,8 @@
 import { create } from "zustand";
 import type { TreeNode, TemplateInfo } from "@/lib/tauri";
 import type { MenuEntry } from "@/components/ui/context-menu";
+import { getVersion } from "@tauri-apps/api/app";
+import { checkForUpdate, type UpdateResult } from "@/lib/updateCheck";
 
 interface MenuPosition {
   x: number;
@@ -20,6 +22,11 @@ export interface UIState {
   zoomLevel: number;
   settingsOpen: boolean;
   aboutOpen: boolean;
+  // 检查更新对话框（checking 为在途态，结果态进 updateDialogState）
+  updateDialogOpen: boolean;
+  updateDialogState: "checking" | "available" | "latest" | "error";
+  updateLatestVersion: string | null;
+  updateLatestUrl: string | null;
   closeDialogOpen: boolean;
   closeDialogResolve: ((choice: "save" | "discard" | "cancel") => void) | null;
   authPrompt: boolean;
@@ -54,6 +61,7 @@ export interface UIState {
   closeMenu: () => void;
   showCloseDialog: () => Promise<"save" | "discard" | "cancel">;
   showPandocDialog: () => Promise<boolean>;
+  openUpdateCheck: () => void;
 }
 
 export const useUiStore = create<UIState>()((set, get) => ({
@@ -63,6 +71,10 @@ export const useUiStore = create<UIState>()((set, get) => ({
   zoomLevel: 0,
   settingsOpen: false,
   aboutOpen: false,
+  updateDialogOpen: false,
+  updateDialogState: "checking",
+  updateLatestVersion: null,
+  updateLatestUrl: null,
   closeDialogOpen: false,
   closeDialogResolve: null,
   authPrompt: false,
@@ -111,6 +123,36 @@ export const useUiStore = create<UIState>()((set, get) => ({
     return new Promise<boolean>((resolve) => {
       set({ pandocDialogOpen: true, pandocDialogResolve: resolve });
     });
+  },
+
+  openUpdateCheck: () => {
+    set({
+      updateDialogOpen: true,
+      updateDialogState: "checking",
+      updateLatestVersion: null,
+      updateLatestUrl: null,
+    });
+    (async () => {
+      let result: UpdateResult;
+      try {
+        result = await checkForUpdate(await getVersion());
+      } catch {
+        // dev 环境无 Tauri runtime / getVersion 失败：按检查失败处理
+        result = { status: "error" };
+      }
+      if (!get().updateDialogOpen) return; // 检查期间用户已关闭对话框：丢弃结果
+      if (result.status === "update-available") {
+        set({
+          updateDialogState: "available",
+          updateLatestVersion: result.latestVersion,
+          updateLatestUrl: result.downloadUrl,
+        });
+      } else if (result.status === "up-to-date") {
+        set({ updateDialogState: "latest" });
+      } else {
+        set({ updateDialogState: "error" });
+      }
+    })();
   },
 }));
 
