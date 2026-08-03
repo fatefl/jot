@@ -59,7 +59,8 @@ dev 环境（`pnpm dev` 纯前端，无 Tauri runtime）：`getVersion()` 失败
 - 网络失败 / 非 200 / JSON 解析失败 / 版本解析失败 → 一律走 `error` 分支
 - 自动检查失败静默忽略，不影响启动
 - 不做去重/缓存：启动只调一次，手动检查可随时重试，天然无重复提示问题
-- 不设显式超时（浏览器 fetch 自带）；GitHub API 未认证限流 60 次/时/IP，启动 + 手动频率远低于此
+- fetch 带 15 秒超时（`AbortSignal.timeout(15_000)`）：断网/挂起时手动检查对话框 15 秒内从「正在检查…」转「检查更新失败」，避免 WebKitGTK 默认超时（约 300 秒）卡住对话框（终审裁定，2026-08-03）
+- GitHub API 未认证限流 60 次/时/IP，启动 + 手动频率远低于此
 
 ## 测试
 
@@ -68,6 +69,7 @@ dev 环境（`pnpm dev` 纯前端，无 Tauri runtime）：`getVersion()` 失败
 - `parseVersion`：`v` 前缀、纯数字、非法输入（空串、`0.1`、`abc`）→ `null`
 - `compareVersions`：相等、major 不同、minor 不同、patch 不同、跨长度（`0.1.19` vs `0.1.2`）
 - `checkForUpdate`：mock `fetch` + mock 当前版本 → 三种状态各一条（API 返回新版 / 返回同版本 / fetch 抛错）
+- `fetchLatestRelease`：断言 fetch 被调用时携带超时信号（`AbortSignal`）——fake timers 无法拦截 `AbortSignal.timeout` 的原生定时器，故不测真实超时触发，仅测信号接线
 
 ## 发布约定（重要）
 
