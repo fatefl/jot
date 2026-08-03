@@ -107,6 +107,22 @@ describe("checkForUpdate", () => {
     await expect(checkForUpdate("0.1.19")).resolves.toEqual({ status: "error" });
   });
 
+  it("fetch 携带超时信号", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        tag_name: "v0.1.17",
+        html_url: "https://github.com/fatefl/jot/releases/latest",
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    await fetchLatestRelease();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.github.com/repos/fatefl/jot/releases/latest",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
   it("当前版本非法 → error（不请求网络）", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

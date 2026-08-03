@@ -33,7 +33,7 @@ export interface LatestRelease {
 const RELEASES_LATEST_URL = "https://api.github.com/repos/fatefl/jot/releases/latest";
 
 export async function fetchLatestRelease(): Promise<LatestRelease> {
-  const res = await fetch(RELEASES_LATEST_URL);
+  const res = await fetch(RELEASES_LATEST_URL, { signal: AbortSignal.timeout(15_000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = (await res.json()) as { tag_name?: unknown; html_url?: unknown };
   if (typeof data.tag_name !== "string" || typeof data.html_url !== "string") {
