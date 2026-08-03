@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { EditorView } from "@codemirror/view";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
-import { scanHighlights } from "./highlight";
+import { applyHighlight, planHighlightEdit, planLineWrap, scanHighlights } from "./highlight";
 import { livePreview } from "./livePreview";
 
 describe("scanHighlights", () => {
@@ -141,6 +141,138 @@ describe("livePreview 高亮装饰", () => {
   it("代码块内 == 不处理", () => {
     const view = buildView("```\n==x==\n```");
     expect(view.dom.querySelector(".lp-hl")).toBeNull();
+    view.destroy();
+  });
+});
+
+describe("planLineWrap（按行包裹）", () => {
+  it("单行默认色", () => {
+    expect(planLineWrap("abc def", 1, 5, null)).toEqual({
+      changes: [{ from: 1, to: 5, insert: "==bc d==" }],
+      anchor: 3,
+      head: 7,
+    });
+  });
+
+  it("命名色前缀", () => {
+    const p = planLineWrap("abc", 0, 3, "red");
+    expect(p!.changes).toEqual([{ from: 0, to: 3, insert: "=={红}abc==" }]);
+  });
+
+  it("跨行按段拆分，selection 覆盖全部内容", () => {
+    const p = planLineWrap("ab\ncd\nef", 1, 7, null);
+    expect(p!.changes).toEqual([
+      { from: 1, to: 2, insert: "==b==" },
+      { from: 3, to: 5, insert: "==cd==" },
+      { from: 6, to: 7, insert: "==e==" },
+    ]);
+    expect(p!.anchor).toBe(3);
+    expect(p!.head).toBe(9); // 3 + (7 - 1)
+  });
+
+  it("空选区返回 null", () => {
+    expect(planLineWrap("abc", 1, 1, null)).toBeNull();
+  });
+
+  it("选区止于行尾换行符前", () => {
+    const p = planLineWrap("ab\ncd", 0, 3, null);
+    expect(p!.changes).toEqual([{ from: 0, to: 2, insert: "==ab==" }]);
+  });
+});
+
+describe("planHighlightEdit（修改/清除已有高亮）", () => {
+  it("选区在默认高亮内：清除剥掉 ==", () => {
+    const p = planHighlightEdit("a ==b== c", 4, 5, { kind: "clear" });
+    expect(p!.changes).toEqual([
+      { from: 2, to: 4, insert: "" },
+      { from: 5, to: 7, insert: "" },
+    ]);
+    expect(p!.anchor).toBe(2);
+    expect(p!.head).toBe(3);
+  });
+
+  it("选区在命名高亮内：点同色=剥除（含 token）", () => {
+    const p = planHighlightEdit("a =={红}b== c", 7, 8, { kind: "apply", color: "red" });
+    expect(p!.changes).toEqual([
+      { from: 2, to: 7, insert: "" },
+      { from: 8, to: 10, insert: "" },
+    ]);
+    expect(p!.anchor).toBe(2);
+    expect(p!.head).toBe(3);
+  });
+
+  it("改色：替换 token", () => {
+    const p = planHighlightEdit("a =={红}b== c", 7, 8, { kind: "apply", color: "blue" });
+    expect(p!.changes).toEqual([{ from: 4, to: 7, insert: "{蓝}" }]);
+    expect(p!.anchor).toBe(7);
+    expect(p!.head).toBe(8);
+  });
+
+  it("默认高亮改命名色：插入 token", () => {
+    const p = planHighlightEdit("a ==b== c", 4, 5, { kind: "apply", color: "red" });
+    expect(p!.changes).toEqual([{ from: 4, to: 4, insert: "{红}" }]);
+    expect(p!.anchor).toBe(7);
+    expect(p!.head).toBe(8);
+  });
+
+  it("命名高亮改默认黄：删除 token", () => {
+    const p = planHighlightEdit("a =={红}b== c", 7, 8, { kind: "apply", color: null });
+    expect(p!.changes).toEqual([{ from: 4, to: 7, insert: "" }]);
+    expect(p!.anchor).toBe(4);
+    expect(p!.head).toBe(5);
+  });
+
+  it("未知 token 高亮：点默认黄=剥除（含未知 token）", () => {
+    const p = planHighlightEdit("a =={xyz}b== c", 9, 10, { kind: "apply", color: null });
+    expect(p!.changes).toEqual([
+      { from: 2, to: 9, insert: "" },
+      { from: 10, to: 12, insert: "" },
+    ]);
+    expect(p!.anchor).toBe(2);
+    expect(p!.head).toBe(3);
+  });
+
+  it("选区不在高亮内返回 null", () => {
+    expect(planHighlightEdit("a ==b== c", 8, 9, { kind: "clear" })).toBeNull();
+  });
+});
+
+describe("applyHighlight（EditorView 集成）", () => {
+  // 需要 markdown 扩展：改色/剥除路径依赖语法树定位 Paragraph 节点，
+  // 裸 EditorView（无语言扩展）会退化到包裹路径导致断言错误
+  function buildView(doc: string): EditorView {
+    return new EditorView({
+      doc,
+      parent: document.body,
+      extensions: [
+        markdown({ base: markdownLanguage, codeLanguages: languages }),
+      ],
+    });
+  }
+
+  it("包裹命名色并保持选区在内容上", () => {
+    const view = buildView("abc def");
+    view.dispatch({ selection: { anchor: 0, head: 3 } });
+    applyHighlight(view, { kind: "apply", color: "red" });
+    expect(view.state.doc.toString()).toBe("=={红}abc== def");
+    expect(view.state.selection.main.anchor).toBe(5);
+    expect(view.state.selection.main.head).toBe(8);
+    view.destroy();
+  });
+
+  it("清除剥除", () => {
+    const view = buildView("=={红}abc== def");
+    view.dispatch({ selection: { anchor: 5, head: 8 } });
+    applyHighlight(view, { kind: "clear" });
+    expect(view.state.doc.toString()).toBe("abc def");
+    view.destroy();
+  });
+
+  it("跨行选区按行包裹", () => {
+    const view = buildView("ab\ncd");
+    view.dispatch({ selection: { anchor: 1, head: 4 } });
+    applyHighlight(view, { kind: "apply", color: null });
+    expect(view.state.doc.toString()).toBe("a==b==\n==cd==");
     view.destroy();
   });
 });
