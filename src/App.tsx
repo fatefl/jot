@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -63,6 +64,12 @@ function baseName(path: string): string {
 export default function App() {
   const { theme, setTheme } = useTheme();
   const toast = useToast();
+
+  // 关于对话框的应用版本：运行时读取，避免硬编码随版本升级漏改
+  const [appVersion, setAppVersion] = useState("");
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => { /* 纯前端 dev 环境无 Tauri runtime */ });
+  }, []);
 
   // DOM refs
   const editorRef = useRef<EditorPanelHandle>(null);
@@ -645,7 +652,7 @@ export default function App() {
       <Dialog open={aboutOpen} onClose={() => useUiStore.setState({ aboutOpen: false })} title="关于 即记 (Jot)" width={380}>
         <div className="flex flex-col items-center gap-3 text-[13px] text-secondary">
           <div className="text-[22px] font-bold text-foreground">即记 Jot</div>
-          <div className="text-[11px]">v0.1.17</div>
+          <div className="text-[11px]">{appVersion ? `v${appVersion}` : ""}</div>
           <p className="text-center leading-relaxed">基于 git 同步的 Markdown 笔记应用<br />Tauri 2 + React + CodeMirror 6</p>
         </div>
       </Dialog>
