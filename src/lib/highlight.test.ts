@@ -272,7 +272,7 @@ describe("applyHighlight（EditorView 集成）", () => {
     const view = buildView("ab\ncd");
     view.dispatch({ selection: { anchor: 1, head: 4 } });
     applyHighlight(view, { kind: "apply", color: null });
-    expect(view.state.doc.toString()).toBe("a==b==\n==cd==");
+    expect(view.state.doc.toString()).toBe("a==b==\n==c==d");
     view.destroy();
   });
 });

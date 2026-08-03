@@ -210,16 +210,11 @@ export function applyHighlight(view: EditorView, action: HighlightAction): boole
       return true;
     }
   }
-  // 包裹路径：整篇文档按行拆分。跨行选区把末段补全到行尾——
-  // 高亮不跨行，末段截半会留下不完整的选中态（planLineWrap 本身严格按选区边界切分）
-  let to2 = to;
-  if (doc.lineAt(from).number !== doc.lineAt(to - 1).number) {
-    to2 = doc.lineAt(to - 1).to;
-  }
+  // 包裹路径：整篇文档按行拆分（严格按选区边界切分，不延伸到行尾）
   const plan = planLineWrap(
     doc.toString(),
     from,
-    to2,
+    to,
     action.kind === "apply" ? action.color : null,
   );
   if (!plan) return false;
