@@ -71,13 +71,14 @@ function fuzzyMatch(items: PaletteItem[], query: string): PaletteItem[] {
 }
 
 /** 内容命中分：匹配次数越多、行越靠前越高；上限 90 < 文件名最低分 100 */
-function contentScore(matchCount: number, line: number): number {
+export function contentScore(matchCount: number, line: number): number {
   return Math.max(0, Math.min(90, 10 * matchCount - Math.floor(line / 10)));
 }
 
 /** 在 context 行内按 query 高亮命中片段，返回 React 节点数组（避免 dangerouslySetInnerHTML） */
-function highlight(text: string, query: string): ReactNode[] {
+export function highlight(text: string, query: string): ReactNode[] {
   const q = query.toLowerCase();
+  if (!q) return [text]; // 空查询下 indexOf("") 恒返回 0，否则死循环
   const nodes: ReactNode[] = [];
   let rest = text;
   let key = 0;

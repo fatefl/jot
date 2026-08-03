@@ -12,7 +12,7 @@
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, fireEvent, act } from "@testing-library/react";
-import { CommandPalette } from "./CommandPalette";
+import { CommandPalette, contentScore, highlight } from "./CommandPalette";
 import { api } from "@/lib/tauri";
 import type { SearchMatch, TreeNode } from "@/lib/tauri";
 
@@ -398,5 +398,29 @@ describe("CommandPalette — 内容搜索", () => {
     expect(btns.some((b) => b.textContent?.includes("stale"))).toBe(false);
     expect(btns.some((b) => b.textContent?.includes("fresh"))).toBe(true);
     vi.useRealTimers();
+  });
+});
+
+describe("CommandPalette — 纯函数", () => {
+  it("contentScore 钳位边界", () => {
+    // matchCount=1, line=200 → 10 - 20 = -10 → 钳到 0
+    expect(contentScore(1, 200)).toBe(0);
+    // matchCount=10, line=1 → 100 - 0 = 100 → 钳到 90
+    expect(contentScore(10, 1)).toBe(90);
+    // 正常区间
+    expect(contentScore(5, 3)).toBe(50); // 10*5 - 0 = 50
+  });
+
+  it("highlight 无匹配返回原文", () => {
+    const nodes = highlight("没有匹配的行", "xyz");
+    expect(nodes.length).toBe(1);
+    expect(nodes[0]).toBe("没有匹配的行");
+  });
+
+  it("highlight 大小写不敏感且多次命中", () => {
+    // "AaA" 中 3 个字符全部命中 q="a"（大小写不敏感）
+    const nodes = highlight("AaA", "a");
+    const marks = nodes.filter((n) => typeof n !== "string");
+    expect(marks.length).toBe(3);
   });
 });
