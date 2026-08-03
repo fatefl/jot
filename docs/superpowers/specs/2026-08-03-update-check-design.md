@@ -21,7 +21,7 @@
 | 函数 | 职责 |
 |---|---|
 | `parseVersion(v)` | 解析 `v0.1.19` / `0.1.19` → `{major, minor, patch}`；非法输入（空串、`0.1`、`abc`）返回 `null`。忽略 pre-release 后缀（`releases/latest` 不含预发布版） |
-| `compareVersions(a, b)` | 数字逐段比较 → `-1 / 0 / 1` |
+| `compareVersions(a, b)` | 数字逐段比较，缺失段按 0 补齐（如 `0.1.19` > `0.1.2`）→ `-1 / 0 / 1` |
 | `fetchLatestRelease()` | `fetch("https://api.github.com/repos/fatefl/jot/releases/latest")`，校验 HTTP 200 + 解析 `tag_name` / `html_url`；失败抛错 |
 | `checkForUpdate(currentVersion)` | 组合以上 → `"update-available" \| "up-to-date" \| "error"`；`update-available` 时附带最新版本号与下载页 URL |
 
