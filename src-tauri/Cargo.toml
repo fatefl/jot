@@ -1,6 +1,6 @@
 [package]
 name = "jot"
-version = "0.1.18"
+version = "0.1.19"
 description = "Personal git-backed markdown notes"
 license = "MIT"
 edition = "2021"
