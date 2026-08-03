@@ -7,4 +7,4 @@ src-tauri/binaries
 *.log
 .DS_Store
 .idea
-#/docs/superpowers/
+/docs/superpowers/
