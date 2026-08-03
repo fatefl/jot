@@ -205,6 +205,17 @@ img { max-width: 100%; height: auto; border-radius: 10px; margin: 0.4em 0; }
 /* ---- 段落（编辑器段落间无额外间距，纯行高） ---- */
 p { margin: 0; }
 
+/* ---- 高亮（=={色}…==） ---- */
+mark.hl-default,
+mark.hl-yellow { background-color: #fdf0b8; color: #6b5a00; border-radius: 2px; padding: 0 2px; }
+mark.hl-red    { background-color: #fbcaca; color: #8c1d1d; border-radius: 2px; padding: 0 2px; }
+mark.hl-orange { background-color: #fcdcb8; color: #7a3f08; border-radius: 2px; padding: 0 2px; }
+mark.hl-green  { background-color: #c9ecc9; color: #1c5c1c; border-radius: 2px; padding: 0 2px; }
+mark.hl-cyan   { background-color: #bfe9f2; color: #0a4d5e; border-radius: 2px; padding: 0 2px; }
+mark.hl-blue   { background-color: #c9d9fb; color: #1c3d8c; border-radius: 2px; padding: 0 2px; }
+mark.hl-purple { background-color: #e0ccf9; color: #4f1f8c; border-radius: 2px; padding: 0 2px; }
+mark.hl-pink   { background-color: #fbcbdf; color: #8c1d56; border-radius: 2px; padding: 0 2px; }
+
 /* ---- 代码块语法高亮 ---- */
 .hljs-keyword,
 .hljs-selector-tag,

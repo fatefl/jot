@@ -7,6 +7,7 @@ import { api } from "@/lib/tauri";
 import { exportStyles } from "@/lib/exportStyles";
 import { extractRichBlocks, renderRichBlocks } from "@/lib/exportRich";
 import { isMac } from "@/lib/platform";
+import { HL_ALIASES } from "./highlight";
 
 // 配置 marked：代码块使用 highlight.js 语法高亮
 marked.use(
@@ -20,6 +21,45 @@ marked.use(
     },
   }),
 );
+
+// 高亮 =={色}…==：与编辑器 livePreview 同语法。inline 扩展在内置
+// codespan 之后执行，`==` 在行内代码里不受影响；`\=` 由内置 escape
+// tokenizer 先行消费，转义高亮自然失效。
+// 自定义 inline tokenizer 默认不递归解析内容——用 this.lexer.inline 重新
+// 词法化，高亮内可嵌套加粗/链接（内容不含 ==，非贪婪保证不会递归匹配自身）。
+marked.use({
+  extensions: [
+    {
+      name: "highlight",
+      level: "inline",
+      start(src: string) {
+        return src.indexOf("==");
+      },
+      tokenizer: function (this: import("marked").TokenizerThis, src: string) {
+        const m = /^==(\{([^}=]*)\})?([\s\S]*?)==/.exec(src);
+        if (!m) return undefined;
+        return {
+          type: "highlight",
+          raw: m[0],
+          color: m[1] ? m[2] : null,
+          text: m[3],
+          tokens: this.lexer.inline(m[3]),
+        } as import("marked").Tokens.Generic;
+      },
+      renderer: function (this: import("marked").RendererThis, token: import("marked").Tokens.Generic) {
+        const t = token as import("marked").Tokens.Generic & {
+          color: string | null;
+          text: string;
+          tokens: import("marked").Tokens.Generic[];
+        };
+        const color = t.color ? (HL_ALIASES[t.color] ?? null) : null;
+        // 未知 token 保留字面（与编辑器降级一致）
+        const prefix = t.color && !color ? `{${t.color}}` : "";
+        return `<mark class="${color ? `hl-${color}` : "hl-default"}">${prefix}${this.parser.parseInline(t.tokens)}</mark>`;
+      },
+    },
+  ],
+});
 
 export type ExportFormat = "html" | "pdf" | "png" | "docx" | "epub" | "latex";
 
