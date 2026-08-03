@@ -38,6 +38,15 @@
   /* 毛玻璃 token（新增） */
   --glass-bg: rgba(255, 255, 255, 0.72);
   --glass-border: rgba(0, 0, 0, 0.06);
+  /* 高亮 token（=={色}…==） */
+  --hl-yellow-bg: #fdf0b8; --hl-yellow-fg: #6b5a00;
+  --hl-red-bg: #fbcaca;    --hl-red-fg: #8c1d1d;
+  --hl-orange-bg: #fcdcb8; --hl-orange-fg: #7a3f08;
+  --hl-green-bg: #c9ecc9;  --hl-green-fg: #1c5c1c;
+  --hl-cyan-bg: #bfe9f2;   --hl-cyan-fg: #0a4d5e;
+  --hl-blue-bg: #c9d9fb;   --hl-blue-fg: #1c3d8c;
+  --hl-purple-bg: #e0ccf9; --hl-purple-fg: #4f1f8c;
+  --hl-pink-bg: #fbcbdf;   --hl-pink-fg: #8c1d56;
 }
 
 .dark {
@@ -59,6 +68,15 @@
   /* 毛玻璃 token（暗色） */
   --glass-bg: rgba(17, 22, 30, 0.78);
   --glass-border: rgba(255, 255, 255, 0.06);
+  /* 高亮 token（暗色） */
+  --hl-yellow-bg: #3f3a10; --hl-yellow-fg: #f2e08a;
+  --hl-red-bg: #3f1414;    --hl-red-fg: #f5a3a3;
+  --hl-orange-bg: #3c2410; --hl-orange-fg: #f0bc84;
+  --hl-green-bg: #14331a;  --hl-green-fg: #9cd9a8;
+  --hl-cyan-bg: #0e2b33;   --hl-cyan-fg: #8fd5e8;
+  --hl-blue-bg: #141e38;   --hl-blue-fg: #a3bdf0;
+  --hl-purple-bg: #231438; --hl-purple-fg: #cfaef2;
+  --hl-pink-bg: #381424;   --hl-pink-fg: #f0a8cc;
 }
 
 html,
@@ -228,6 +246,21 @@ html.focus-mode .editor-body .cm-editor .cm-content {
 .editor-body .lp-strong { font-weight: 600; }
 .editor-body .lp-em { font-style: italic; }
 .editor-body .lp-strike { text-decoration: line-through; }
+
+/* 高亮 =={色}…==：马克笔背景。亮暗主题随 token 自动切换 */
+.editor-body .lp-hl {
+  background: var(--hl-yellow-bg);
+  color: var(--hl-yellow-fg);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+.editor-body .lp-hl-red    { background: var(--hl-red-bg);    color: var(--hl-red-fg); }
+.editor-body .lp-hl-orange { background: var(--hl-orange-bg); color: var(--hl-orange-fg); }
+.editor-body .lp-hl-green  { background: var(--hl-green-bg);  color: var(--hl-green-fg); }
+.editor-body .lp-hl-cyan   { background: var(--hl-cyan-bg);   color: var(--hl-cyan-fg); }
+.editor-body .lp-hl-blue   { background: var(--hl-blue-bg);   color: var(--hl-blue-fg); }
+.editor-body .lp-hl-purple { background: var(--hl-purple-bg); color: var(--hl-purple-fg); }
+.editor-body .lp-hl-pink   { background: var(--hl-pink-bg);   color: var(--hl-pink-fg); }
 
 /* 行内标记极小化隐藏：font-size 缩到 0.25em 让标记近零宽（~2px/字），
    减少隐藏字符对行宽和点击位置的影响；但保留非零字号避免
@@ -1086,4 +1119,47 @@ html.focus-mode .editor-body .cm-editor .cm-content {
 }
 .agreement-content hr {
   @apply my-4 border-border;
+}
+
+/* ---- 高亮调色工具条（选中文字后浮动） ---- */
+.hl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+.hl-toolbar button.hl-swatch {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.hl-swatch-yellow { background: var(--hl-yellow-bg); }
+.hl-swatch-red    { background: var(--hl-red-bg); }
+.hl-swatch-orange { background: var(--hl-orange-bg); }
+.hl-swatch-green  { background: var(--hl-green-bg); }
+.hl-swatch-cyan   { background: var(--hl-cyan-bg); }
+.hl-swatch-blue   { background: var(--hl-blue-bg); }
+.hl-swatch-purple { background: var(--hl-purple-bg); }
+.hl-swatch-pink   { background: var(--hl-pink-bg); }
+.hl-swatch-clear {
+  background: transparent;
+  border-color: var(--text-secondary);
+}
+.hl-swatch-clear::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 50%;
+  height: 2px;
+  background: var(--text-secondary);
+  transform: rotate(-45deg);
 }
