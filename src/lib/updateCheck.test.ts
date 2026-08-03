@@ -1,7 +1,7 @@
 // src/lib/updateCheck.test.ts
 // 版本解析与比较的纯函数单测。
-import { describe, expect, it } from "vitest";
-import { parseVersion, compareVersions } from "./updateCheck";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { parseVersion, compareVersions, fetchLatestRelease, checkForUpdate } from "./updateCheck";
 
 describe("parseVersion", () => {
   it("解析 v 前缀", () => {
@@ -43,5 +43,74 @@ describe("compareVersions", () => {
   it("patch 最后（0.1.19 > 0.1.2）", () => {
     expect(compareVersions(v(0, 1, 19), v(0, 1, 2))).toBe(1);
     expect(compareVersions(v(0, 1, 2), v(0, 1, 19))).toBe(-1);
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("fetchLatestRelease", () => {
+  it("200 时返回 tagName 与 htmlUrl", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        tag_name: "v0.1.17",
+        html_url: "https://github.com/fatefl/jot/releases/tag/v0.1.17",
+      }),
+    })));
+    await expect(fetchLatestRelease()).resolves.toEqual({
+      tagName: "v0.1.17",
+      htmlUrl: "https://github.com/fatefl/jot/releases/tag/v0.1.17",
+    });
+  });
+
+  it("非 200 抛错", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 403 })));
+    await expect(fetchLatestRelease()).rejects.toThrow("HTTP 403");
+  });
+
+  it("响应缺字段抛错", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({}) })));
+    await expect(fetchLatestRelease()).rejects.toThrow("malformed release payload");
+  });
+});
+
+describe("checkForUpdate", () => {
+  const mockFetch = (payload: object) =>
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => payload })));
+
+  it("远端更新 → update-available", async () => {
+    mockFetch({
+      tag_name: "v0.1.17",
+      html_url: "https://github.com/fatefl/jot/releases/tag/v0.1.17",
+    });
+    await expect(checkForUpdate("0.1.16")).resolves.toEqual({
+      status: "update-available",
+      latestVersion: "0.1.17",
+      downloadUrl: "https://github.com/fatefl/jot/releases/tag/v0.1.17",
+    });
+  });
+
+  it("版本相同 → up-to-date", async () => {
+    mockFetch({ tag_name: "v0.1.19", html_url: "https://github.com/fatefl/jot/releases/latest" });
+    await expect(checkForUpdate("0.1.19")).resolves.toEqual({ status: "up-to-date" });
+  });
+
+  it("远端更旧 → up-to-date", async () => {
+    mockFetch({ tag_name: "v0.1.17", html_url: "https://github.com/fatefl/jot/releases/latest" });
+    await expect(checkForUpdate("0.1.19")).resolves.toEqual({ status: "up-to-date" });
+  });
+
+  it("fetch 抛错 → error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("network"); }));
+    await expect(checkForUpdate("0.1.19")).resolves.toEqual({ status: "error" });
+  });
+
+  it("当前版本非法 → error（不请求网络）", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(checkForUpdate("abc")).resolves.toEqual({ status: "error" });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

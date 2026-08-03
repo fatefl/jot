@@ -24,3 +24,45 @@ export function compareVersions(a: Version, b: Version): number {
   }
   return 0;
 }
+
+export interface LatestRelease {
+  tagName: string;
+  htmlUrl: string;
+}
+
+const RELEASES_LATEST_URL = "https://api.github.com/repos/fatefl/jot/releases/latest";
+
+export async function fetchLatestRelease(): Promise<LatestRelease> {
+  const res = await fetch(RELEASES_LATEST_URL);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = (await res.json()) as { tag_name?: unknown; html_url?: unknown };
+  if (typeof data.tag_name !== "string" || typeof data.html_url !== "string") {
+    throw new Error("malformed release payload");
+  }
+  return { tagName: data.tag_name, htmlUrl: data.html_url };
+}
+
+export type UpdateResult =
+  | { status: "update-available"; latestVersion: string; downloadUrl: string }
+  | { status: "up-to-date" }
+  | { status: "error" };
+
+export async function checkForUpdate(currentVersion: string): Promise<UpdateResult> {
+  const current = parseVersion(currentVersion);
+  if (!current) return { status: "error" };
+  try {
+    const latest = await fetchLatestRelease();
+    const latestParsed = parseVersion(latest.tagName);
+    if (!latestParsed) return { status: "error" };
+    if (compareVersions(latestParsed, current) > 0) {
+      return {
+        status: "update-available",
+        latestVersion: latest.tagName.replace(/^v/, ""),
+        downloadUrl: latest.htmlUrl,
+      };
+    }
+    return { status: "up-to-date" };
+  } catch {
+    return { status: "error" };
+  }
+}
