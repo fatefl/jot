@@ -14,7 +14,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, fireEvent, act } from "@testing-library/react";
 import { CommandPalette } from "./CommandPalette";
 import { api } from "@/lib/tauri";
-import type { TreeNode } from "@/lib/tauri";
+import type { SearchMatch, TreeNode } from "@/lib/tauri";
 
 // Mock api.searchContent
 vi.mock("@/lib/tauri", () => ({
@@ -355,6 +355,48 @@ describe("CommandPalette — 内容搜索", () => {
     const marks = container.querySelectorAll("mark");
     expect(marks.length).toBe(2);
     expect(marks[0].textContent).toBe("git");
+    vi.useRealTimers();
+  });
+
+  it("过期内容搜索响应被丢弃", async () => {
+    vi.useFakeTimers();
+    let resolveFirst!: (v: SearchMatch[]) => void;
+    vi.mocked(api.searchContent)
+      .mockImplementationOnce(() => new Promise((res) => { resolveFirst = res; }))
+      .mockResolvedValueOnce([
+        { name: "fresh", path: "/notes/fresh.md", line: 1, context: "新查询结果", matchCount: 1 },
+      ]);
+    const notes: TreeNode[] = [
+      makeNode("/notes", "notes", true, [
+        makeNode("/notes/fresh.md", "fresh.md", false),
+      ]),
+    ];
+    const { container } = render(
+      <CommandPalette
+        open={true}
+        notes={notes}
+        notesDir="/notes"
+        recentPaths={[]}
+        onOpenFile={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    const inp = inputEl(container)!;
+    fireEvent.change(inp, { target: { value: "git" } });
+    act(() => { vi.advanceTimersByTime(200); }); // 第 1 次调用，promise 挂起
+    fireEvent.change(inp, { target: { value: "gita" } });
+    act(() => { vi.advanceTimersByTime(200); }); // 第 2 次调用
+    await act(async () => { await Promise.resolve(); }); // 第 2 次结果渲染
+
+    // 第 1 次响应现在才到 → id 过期 → 丢弃
+    resolveFirst([
+      { name: "stale", path: "/notes/stale.md", line: 1, context: "旧查询结果", matchCount: 1 },
+    ]);
+    await act(async () => { await Promise.resolve(); });
+
+    const btns = resultBtns(container);
+    expect(btns.some((b) => b.textContent?.includes("stale"))).toBe(false);
+    expect(btns.some((b) => b.textContent?.includes("fresh"))).toBe(true);
     vi.useRealTimers();
   });
 });
