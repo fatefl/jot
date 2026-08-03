@@ -52,6 +52,7 @@ import { useTabLifecycle } from "@/hooks/useTabLifecycle";
 import { useAppShell } from "@/hooks/useAppShell";
 import { useDragAndDrop } from "@/hooks/useDragAndDrop";
 import { useFileTreeCallbacks } from "@/hooks/useFileTreeCallbacks";
+import { useUpdateCheck } from "@/hooks/useUpdateCheck";
 
 // Menus
 import { buildMenuGroups } from "@/menus/appMenu";
@@ -64,6 +65,7 @@ function baseName(path: string): string {
 export default function App() {
   const { theme, setTheme } = useTheme();
   const toast = useToast();
+  useUpdateCheck(toast);
 
   // 关于对话框的应用版本：运行时读取，避免硬编码随版本升级漏改
   const [appVersion, setAppVersion] = useState("");
