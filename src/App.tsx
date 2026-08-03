@@ -114,6 +114,10 @@ export default function App() {
   const zoomLevel = useUiStore((s) => s.zoomLevel);
   const settingsOpen = useUiStore((s) => s.settingsOpen);
   const aboutOpen = useUiStore((s) => s.aboutOpen);
+  const updateDialogOpen = useUiStore((s) => s.updateDialogOpen);
+  const updateDialogState = useUiStore((s) => s.updateDialogState);
+  const updateLatestVersion = useUiStore((s) => s.updateLatestVersion);
+  const updateLatestUrl = useUiStore((s) => s.updateLatestUrl);
   const closeDialogOpen = useUiStore((s) => s.closeDialogOpen);
   const authPrompt = useUiStore((s) => s.authPrompt);
   const authReason = useUiStore((s) => s.authReason);
@@ -655,6 +659,48 @@ export default function App() {
           <div className="text-[11px]">{appVersion ? `v${appVersion}` : ""}</div>
           <p className="text-center leading-relaxed">基于 git 同步的 Markdown 笔记应用<br />Tauri 2 + React + CodeMirror 6</p>
         </div>
+      </Dialog>
+
+      <Dialog
+        open={updateDialogOpen}
+        onClose={() => useUiStore.setState({ updateDialogOpen: false })}
+        title="检查更新"
+        width={380}
+        footer={
+          updateDialogState === "available" ? (
+            <>
+              <button
+                className="rounded-lg border border-border px-4 py-2 text-[13px] hover:bg-hover hover-transition"
+                onClick={() => useUiStore.setState({ updateDialogOpen: false })}
+              >稍后</button>
+              <button
+                className="rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-white hover:opacity-90 hover-transition"
+                onClick={() => {
+                  if (updateLatestUrl) api.openUrl(updateLatestUrl).catch(() => {});
+                  useUiStore.setState({ updateDialogOpen: false });
+                }}
+              >前往下载</button>
+            </>
+          ) : undefined
+        }
+      >
+        {updateDialogState === "checking" && (
+          <p className="text-[13px] text-secondary">正在检查更新…</p>
+        )}
+        {updateDialogState === "available" && (
+          <p className="text-[13px] text-secondary leading-relaxed">
+            发现新版本 <span className="font-medium text-foreground">v{updateLatestVersion}</span>
+            {appVersion ? <span>（当前 v{appVersion}）</span> : null}
+          </p>
+        )}
+        {updateDialogState === "latest" && (
+          <p className="text-[13px] text-secondary">
+            当前已是最新版本{appVersion ? ` v${appVersion}` : ""}
+          </p>
+        )}
+        {updateDialogState === "error" && (
+          <p className="text-[13px] text-secondary">检查更新失败，请稍后再试</p>
+        )}
       </Dialog>
 
       <AuthDialog open={authPrompt} reason={authReason} initialUsername={config?.username ?? ""} initialToken={config?.token ?? ""}

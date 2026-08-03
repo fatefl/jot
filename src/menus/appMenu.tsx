@@ -488,6 +488,11 @@ export function buildMenuGroups(
         },
         "separator" as const,
         {
+          label: "检查更新...",
+          onClick: () => useUiStore.getState().openUpdateCheck(),
+        },
+        "separator" as const,
+        {
           label: "关于 即记 (Jot)",
           onClick: () => useUiStore.setState({ aboutOpen: true }),
         },
